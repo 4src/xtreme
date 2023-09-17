@@ -121,7 +121,7 @@ function COLS:add(row)
 -- ._  _       
 -- |  (_) \/\/ 
 
-function ROW:init(t,data) return {_data=data,rows=t; bins=l.list.copy(t),cost=0} end
+function ROW:init(t,data) return {_data=data,rows=t; bins=l.list.copy(t),cost=0} end 
 
 function ROW:dist(i,j)
   d,n = 0,0
