@@ -72,6 +72,12 @@ function test.nums(     n,mu,sd)
   n=x.NUM()
   for i=1,10^3 do n:add(l.rand.norm(10,2)) end
   mu,sd = n:mid(), n:div()
-  return 9.9 < mu and mu < 10.1 and 1.95 < sd and sd < 2.05 end
+  return 9.9 < mu and mu < 10.1 and 1.99 < sd and sd < 2.01 end
+
+function test.syms(     s)
+  s=x.SYM{"a","a","a","a","b","b","c"}
+  return s.mode=="a" and 1.37 < s:div() and s:div() < 1.38 end
+  
+  
 -------------------- ------------------- --------------------- -------------------- ----------
 test.Run(x.the)

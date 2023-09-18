@@ -171,6 +171,9 @@ function DATA:bins(rows)
     for _,cols in pairs{self.cols.x, self.cols.y} do for _,col in pairs(cols) do 
       row.bins[col.at] = col:bin(row.bins[col.at]) end end end end
 
+function DATA:sort()
+  return keysort(self.rows, function(r) r:d2h() end) end
+
 function DATA:stats(  cols,swant,n,      t)
   t = {N = #self.rows}
   for _,c in pairs(cols or self.cols.y) do t[c.at]=rnd(swant=="div" and c:div() or c:mid(), n) end
@@ -183,7 +186,7 @@ function tree.half(rows,sorting,     a,b,C,as,bs,some, cosine)
   a,b,C = some[1]:extremities(some)
   as,bs = {},{}
   if sorting and b:better(a) then a,b = b,a end
-  function cosine(A,B) return (A^2+C^2 - B^2)/(2*C) end
+  function x(A,B) return (A^2+C^2 - B^2)/(2*C) end
   for n,row in pairs(sort(rows, function(r) return cosine(r:dist(a), r:dist(b)) end)) do
     push(n <= #rows/2 and as or bs, row) end
   return a,b,as,bs end

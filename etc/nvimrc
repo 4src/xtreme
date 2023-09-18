@@ -19,6 +19,7 @@ Plug 'romainl/Apprentice',{'as':'apprentice'}
 Plug 'powerline/powerline'
 Plug 'iamcco/markdown-preview.nvim', { 'do': { -> mkdp#util#install() }, 'for': ['markdown', 'vim-plug']}
 Plug 'bluz71/vim-nightfly-colors', { 'as': 'nightfly' }
+Plug 'nvim-treesitter/nvim-treesitter', {'do': ':TSUpdate'}
 
 call plug#end()
 
