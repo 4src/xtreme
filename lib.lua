@@ -138,19 +138,19 @@ function rand.norm(mu,sd,     r)
 -- _|_  _   _ _|_ 
 --  |_ (/_ _>  |_ 
 
-function test.Run1(the, sName, fun,    b4,ok,returned)
+function test.Run1(the, sName, fun,    b4,ok,returned,seed)
   b4={}; for k,v in pairs(the) do b4[k]=v end
-  math.randomseed(the.seed or 1234567891)
-  rand.seed    = the.seed or 1234567891
-  if the.wild then
-    ok,returned = true,fun()
-  else
-    ok,returned = pcall(fun)
+  seed = the.seed or 1234567891
+  math.randomseed(seed)
+  rand.seed = seed
+  if   the.wild 
+  then ok,returned = true,fun()
+  else ok,returned = pcall(fun)
   end
   for k,v in pairs(b4) do the[k]=v end
-  test.Status(ok,returned,sName) end
+  return test.Failed(ok,returned,sName) end
 
-function test.Status(ok,returned,sName)
+function test.Failed(ok,returned,sName)
   if ok then -- pcall terminated normally
     if returned == false then
       print("❌  FAIL : "..sName.." : returned false") 
@@ -166,7 +166,8 @@ function test.Run(the,     tag,fails,sep,a,b)
   for name,fun in list.keys(test) do
     if name:find"^[a-z]" then
       if    the.help 
-      then  a,b="\n  ","\t: "; for s in name:gmatch("([^_]+)") do io.write(a..s..b); a,b=" ","" end 
+      then  a,b="\n  ","\t: "
+            for s in name:gmatch("([^_]+)") do io.write(a..s..b); a,b=" ","" end 
       else
         tag = name:match"(%w+)[_]?.*"
         if the.go==tag or the.go=="all" then

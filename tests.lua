@@ -78,6 +78,7 @@ function test.syms(     s)
   s=x.SYM{"a","a","a","a","b","b","c"}
   return s.mode=="a" and 1.37 < s:div() and s:div() < 1.38 end
   
-  
+function test.csv()
+   l.str.csv(x.the.file,  oo)end
 -------------------- ------------------- --------------------- -------------------- ----------
 test.Run(x.the)

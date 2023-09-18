@@ -105,12 +105,13 @@ NUM._bins= {
 -- (_ (_) | _> 
 
 function COLS:init(t,    col,category)
-  self.all, self.x, self.y, self.names = {},{},{},t
+  self.all, self.x, self.y, self.names,self.klass = {},{},{},t,nil
   for at,txt in pairs(t) do 
     col = (txt:find"^[A-Z]" and NUM or SYM)({}, at, txt)
     push(self.all, col)
     if not txt:find"X$" then
-      category = txt:find"[+-]$" and self.y or self.x
+      if txt:find"!$" then self.klass = col end
+      category = txt:find"[!+-]$" and self.y or self.x
       push(category, col) end end end
 
 function COLS:add(row)
