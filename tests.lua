@@ -68,6 +68,10 @@ function test.any_pick_one(     t)
 function test.cols()
   map( COLS({"name","Age","Weight-"}).all, oo) end
 
---function test.nums(     n) n=x.NUM() end
+function test.nums(     n,mu,sd) 
+  n=x.NUM()
+  for i=1,10^3 do n:add(l.rand.norm(10,2)) end
+  mu,sd = n:mid(), n:div()
+  return 9.9 < mu and mu < 10.1 and 1.95 < sd and sd < 2.05 end
 -------------------- ------------------- --------------------- -------------------- ----------
 test.Run(x.the)

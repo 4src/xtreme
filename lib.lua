@@ -142,7 +142,11 @@ function test.Run1(the, sName, fun,    b4,ok,returned)
   b4={}; for k,v in pairs(the) do b4[k]=v end
   math.randomseed(the.seed or 1234567891)
   rand.seed    = the.seed or 1234567891
-  ok, returned = pcall(fun)
+  if the.wild then
+    ok,returned = true,fun()
+  else
+    ok,returned = pcall(fun)
+  end
   for k,v in pairs(b4) do the[k]=v end
   test.Status(ok,returned,sName) end
 

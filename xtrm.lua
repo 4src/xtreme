@@ -1,16 +1,14 @@
---                       ___                        
---                      /\_ \                       
---    __     __         \//\ \    __  __     __     
---  /'__`\ /'_ `\         \ \ \  /\ \/\ \  /'__`\   
--- /\  __//\ \L\ \      __ \_\ \_\ \ \_\ \/\ \L\.\_ 
--- \ \____\ \____ \    /\_\/\____\\ \____/\ \__/.\_\
---  \/____/\/___L\ \   \/_/\/____/ \/___/  \/__/\/_/
---           /\____/                                
---           \_/__/                                 
-
+--        __                               ___                        
+--       /\ \__                           /\_ \                       
+--  __  _\ \ ,_\  _ __    ___ ___         \//\ \    __  __     __     
+-- /\ \/'\\ \ \/ /\`'__\/' __` __`\         \ \ \  /\ \/\ \  /'__`\   
+-- \/>  </ \ \ \_\ \ \/ /\ \/\ \/\ \      __ \_\ \_\ \ \_\ \/\ \L\.\_ 
+--  /\_/\_\ \ \__\\ \_\ \ \_\ \_\ \_\    /\_\/\____\\ \____/\ \__/.\_\
+--  \//\/_/  \/__/ \/_/  \/_/\/_/\/_/    \/_/\/____/ \/___/  \/__/\/_/
+                                                                   
 local the = require("lib").settings.create[[
 
-eg: demonstrator of "less is more"
+xtrm: recursive bi-clustering using extreme points
 (c) 2023, Tim Menzies, <timm@ieee.org>, BSD-2
 
 USAGE: 
@@ -21,11 +19,12 @@ OPTION:
   -b --bins      number of bins             = 5
   -d --decimals  print first `decimals`     = 2
   -f --file      csv file to load           = ../data/auto93.csv   
-  -F --Far       distance to far            = .9
+  -F --Far       distance to far            = .975
   -g --go        start up action            = nothing
   -h --help      show help                  = false
   -H --Half      items explored in halving  = 256
   -s --seed      random number seed         = 937162211
+  -w --wild      run without pcall          = false
 ]]
 -------------------- ------------------- --------------------- -------------------- ----------
 local l = require("lib")
@@ -61,15 +60,15 @@ function SYM:div()     return l.list.entropy(self.has) end
 
 function NUM:init(t, at, txt) 
   self.at, self.txt = at or 0, txt or ""
-  self.n, self.mu, self.m2, self.sd = 0, 0, 0, 0
+  self.n,self.mu,self.m2,self.sd,self.lo,self.hi = 0,0,0,0,1E30,-1E30
   for _,x in pairs(t or {}) do self:add(x) end end
 
 function NUM:add(x,    d)
   if x ~="?" then 
     self.n  = self.n + 1 
     d       = x - self.mu
-    self.lo = min(self.lo,x)
-    self.hi = max(self.hi,x) 
+    self.lo = min(self.lo, x)
+    self.hi = max(self.hi, x) 
     self.mu = self.mu + d/self.n 
     self.m2 = self.m2 + d*(x - self.mu) 
     if self.n > 1 then self.sd = sqrt(self.m2/(self.n - 1)) end end end
