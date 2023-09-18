@@ -68,7 +68,6 @@ function test.any_pick_one(     t)
 function test.cols()
   map( COLS({"name","Age","Weight-"}).all, oo) end
 
-function test.nums(     n)
-  n=x.NUM() end
+--function test.nums(     n) n=x.NUM() end
 -------------------- ------------------- --------------------- -------------------- ----------
 test.Run(x.the)
