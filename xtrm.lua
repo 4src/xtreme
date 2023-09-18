@@ -20,7 +20,7 @@ USAGE:
 OPTION:
   -b --bins      number of bins             = 5
   -d --decimals  print first `decimals`     = 2
-  -f --file      csv file to load           = ../data/auto93.csv
+  -f --file      csv file to load           = ../data/auto93.csv   
   -F --Far       distance to far            = .9
   -g --go        start up action            = nothing
   -h --help      show help                  = false
@@ -29,8 +29,9 @@ OPTION:
 ]]
 -------------------- ------------------- --------------------- -------------------- ----------
 local l = require("lib")
-local obj,oo,push,rnd,sort   = l.obj, l.str.oo, l.list.push, l.maths.rnd, l.list.sort
-local cos,exp,log,max,min,pi = math.cos,math.exp,math.log,math.max,math.min,math.pi
+local o,obj,oo,push,rnd,sort  = l.str.o, l.obj, l.str.oo, l.list.push, l.maths.rnd, l.list.sort
+local sqrt,cos,exp,log = math.sqrt,math.cos,math.exp,math.log
+local max,min,abs,pi   = math.max,math.min,math.abs,math.pi
 
 local DATA,COLS,ROW,NUM,SYM = obj"DATA", obj"COLS", obj"ROW", obj"NUM", obj"SYM"
 -------------------- ------------------- --------------------- -------------------- ----------
@@ -71,7 +72,7 @@ function NUM:add(x,    d)
     self.hi = max(self.hi,x) 
     self.mu = self.mu + d/self.n 
     self.m2 = self.m2 + d*(x - self.mu) 
-    if i.n > 1 then self.sd = sqrt(self.m2/(i.n - 1)) end end end
+    if self.n > 1 then self.sd = sqrt(self.m2/(self.n - 1)) end end end
 
 function NUM:mid()   return self.mu end
 function NUM:div()   return self.sd end
@@ -86,9 +87,9 @@ function NUM:dist(x,y)
   return abs(x - y)  end
 
 function NUM:bin(x,     tmp)
-  if x=="?"      then return x end
-  tmp = (x - col.mu)/col.sd
-  for b,x in pairs(NUM._bins[the.bins])  do if tmp <= x then return b end end
+  if x=="?"  then return x end
+  tmp = (x - self.mu)/self.sd
+  for b,x in pairs(NUM._bins[the.bins]) do if tmp <= x then return b end end
   return the.bins end
 
 NUM._bins= {
@@ -123,7 +124,7 @@ function COLS:add(row)
 
 function ROW:init(t,data) return {_data=data,rows=t; bins=l.list.copy(t),cost=0} end 
 
-function ROW:dist(i,j)
+function ROW.dist(row1,row2)
   d,n = 0,0
   for _,col in pairs(row1._data.cols.x) do
     n = n + 1
@@ -140,8 +141,8 @@ function ROW:extremities(rows,     n,x,y)
   return x,y, x:dist(y) end
 
 function ROW:d2h()
-  d,n,self.cost = 0,0,1
-  for _,col in pairs(row1._data.cols.y) do 
+  d, n, self.cost = 0, 0, 1
+  for _,col in pairs(self._data.cols.y) do
     n = n + 1
     d = d + col:d2h(self.cells[col.at])^the.p end
   return (d/n)^(1/the.p) end
@@ -166,10 +167,10 @@ function DATA:clone(rows)
 function DATA:add(row)
   if self.cols then push(self.rows, self.cols:add(row)) else self.cols=COLS(self.cells) end end 
 
-function DATA:bins()
-  for _,row in pairs(rows) do
+function DATA:bins(rows)
+  for _,row in pairs(rows or self.rows) do
     for _,cols in pairs{self.cols.x, self.cols.y} do for _,col in pairs(cols) do 
-      row.bins[col.at] = col:bin(x) end end end end
+      row.bins[col.at] = col:bin(row.bins[col.at]) end end end end
 
 function DATA:stats(  cols,swant,n,      t)
   t = {N = #self.rows}
@@ -178,13 +179,13 @@ function DATA:stats(  cols,swant,n,      t)
 -------------------- ------------------- --------------------- -------------------- ----------
 local tree={}
 
-function tree.half(rows,sorted,     a,b,C,as,bs,some, cosine)
+function tree.half(rows,sorting,     a,b,C,as,bs,some, cosine)
   some  = l.rand.many(rows, min(the.Half, #rows))
   a,b,C = some[1]:extremities(some)
   as,bs = {},{}
-  if sorting and b:better(a) then a,b = b,c end
+  if sorting and b:better(a) then a,b = b,a end
   function cosine(A,B) return (A^2+C^2 - B^2)/(2*C) end
-  for n,row in pairs(sorted(rows, function(r) return cosine(r:dist(a), r:dist(b)) end)) do
+  for n,row in pairs(sort(rows, function(r) return cosine(r:dist(a), r:dist(b)) end)) do
     push(n <= #rows/2 and as or bs, row) end
   return a,b,as,bs end
 
@@ -211,7 +212,7 @@ function tree.show(node,     _show)
     n    = log(n,2)//1
     pre  = "%".. tostring(n) .. "s %s"
     post = leafp and o(node.here:stats()) or ""
-    print(string.format(pre, ("|...")*rep(lvl),post)) end
+    print(string.format(pre, ("|..."):rep(lvl),post)) end
   tree.walk(node, _show) end
 -------------------- ------------------- --------------------- -------------------- ----------
 return {the=the, DATA=DATA, ROW=ROW, SYM=SYM, NUM=NUM, COLS=COLS}

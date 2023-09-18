@@ -83,8 +83,8 @@ function list.keys(t,    i,u)
     i = i + 1
     if i <= #u then return u[i][1], u[i][2] end end end
 
-function list.keysort(t,keyfun) 
-  local _,tmp = list
+function list.keysort(t,keyfun,     tmp)
+  local _ = list
   tmp = _.map(t, function(x) return {keyfun(x),x} end)
   return _.map( _.sort(tmp, _.lt(1)), _.second) end
 
@@ -118,7 +118,7 @@ function settings.cli(t,     s)
 
 rand.seed = 937162211
 
-function rand.rint(nlo,nhi) return floor(0.5 + rand.rand(nlo,nhi)) end
+function rand.rint(nlo,nhi) return floor(0.5 + rand.rand(nlo,nhi)) end 
 
 function rand.rand(nlo,nhi)
   nlo,nhi   = nlo or 0, nhi or 1
