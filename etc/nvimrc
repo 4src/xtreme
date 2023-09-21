@@ -29,8 +29,6 @@ if shouldInstallBundles == 1
     :PlugInstall
 endif
 
-colorscheme nightfly
-
 set noswapfile nowritebackup nobackup
 set ignorecase
 set visualbell
@@ -79,4 +77,5 @@ else
     endif
 endif
 
+colorscheme nightfly
 
