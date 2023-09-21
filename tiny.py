@@ -98,7 +98,7 @@ def dist(row1,row2):
   for n,col in row1._data.cols.x.items():
     x  = row1.cells[n]
     y  = row2.cells[n]
-    d += _dist(col,x,y)**the.bins
+    d += _dist(col,x,y) ** the.bins
     m += 1
   return (d/m) ** (1/the.bins)
 
@@ -110,9 +110,9 @@ def d2h(row):
   d,m = 0,0
   for n,col in row._data.cols.y.items():
     x  = norm(col, row.cells[n])
-    d += abs(x - row._data.cols.w[n])**2
+    d += abs(x - row._data.cols.w[n]) ** 2
     m += 1
-  return (d/m)**.5
+  return (d/m) ** .5
 #----------------------------------------------------------------------------------------
 #   _|   _.  _|_   _. 
 #  (_|  (_|   |_  (_| 
@@ -123,11 +123,12 @@ def DATA(src):
   return sortedAndDiscretized(data)
 
 def adds(data,row):
-  if not data.cols: data.cols = COLS(row.cells)
-  else:
-    [add(col,x) for col,x in zip(data.cols.all, row.cells)]
-    row._data = row._data or data
-    data.rows += [row]
+  if not data.cols: 
+    data.cols = COLS(row.cells)
+    return
+  [add(col,x) for col,x in zip(data.cols.all, row.cells)]
+  row._data = row._data or data
+  data.rows += [row]
 
 def COLS(a):
   all = [NUM() if s[0].isupper() else SYM() for s in a] 
