@@ -8,7 +8,7 @@ from math import cos,log
 #   _   |   _   |_    _.  |   _ 
 #  (_|  |  (_)  |_)  (_|  |  _> 
 #   _|                          
-the=dict(file="../data/auto93.csv", bins=5, Half=256, p=2, seed=1234567891,Far=.9)
+the=dict(file="../data/auto93.csv", bins=5, Half=256, min=.5,p=2, seed=1234567891,Far=.9)
 
 BIG=1E30
 #----------------------------------------------------------------------------------------
@@ -104,9 +104,10 @@ def d2h(row):
 def DATA(src):
   data = box(cols=None, rows=lots())
   for row in src: adds(data,row)
-  return discretized(data)
+  return sortedAndDiscretized(data)
 
 def adds(data,row):
+  print(row)
   if not data.cols: data.cols = COLS(row.cells)
   else:
     [add(col,x) for col,x in zip(data.cols.all, row.cells)]
@@ -123,9 +124,9 @@ def COLS(a):
   return box(names=a, w=w, x=x, y=y, all=all)
 
 def clone(data,rows=[]):
-  return DATA([data.cols.names] + rows)
+  return DATA([ROW(data.cols.names)] + rows)
 
-def discretized(data):
+def sortedAndDiscretized(data):
   for n,col in enumerate(data.cols.all):
     if nump(col): 
       col.sort() 
@@ -140,7 +141,7 @@ def stats(data, cols="y", decimals=None, want=mid):
 #   _  |        _  _|_   _   ._ 
 #  (_  |  |_|  _>   |_  (/_  |  
 
-def extremities(rows):
+def extremes(rows):
   n = int(len(rows)*the.Far)
   w = random.choice(rows)
   x = around(w, rows)[n]
@@ -148,7 +149,7 @@ def extremities(rows):
   return x,y, dist(x,y)
 
 def half(rows,sorting=False):
-  a,b,C = extremities( random.sample(rows, k=min(len(rows),the.Half)))
+  a,b,C = extremes( random.sample(rows, k=min(len(rows),the.Half)))
   if sorting and better(b,a): a,b = b,a 
   rows = sorted(rows, key=lambda r: (dist(r,a)**2 + C**2 - dist(r,b)**2)/(2*C))
   mid  = int(len(rows)/2)
@@ -156,7 +157,7 @@ def half(rows,sorting=False):
 
 def tree(data,sorting=False):
   def _grow(data1,stop):
-    node = box(here=data1,left=None,right=None)
+    node = box(data=data1,left=None,right=None)
     if len(data1.rows) >= 2*stop:
        a,b,left,right = half(data1.rows, sorting)
        node.left = _grow(clone(data, left), stop)
@@ -164,11 +165,28 @@ def tree(data,sorting=False):
     return node
   return _grow(data, len(data.rows)**the.min)
 
-def visit(node,fun,lvl=0):
+def visit(node,lvl=0):
   if node:
-    fun(node,lvl,not(node.left or node.right))
-    visit(node.left,  lvl+1)
-    visit(node.right, lvl+1)
+    yield node,lvl,not(node.left or node.right)
+    for kid in [node.left, node.right]:
+      for a,b,c in visit(kid,lvl+1):
+        yield a,b,c
+ 
+def show(tree):
+  width = int(log(len(tree.data.rows)**the.min,2))
+  for node,lvl,leafp in visit(tree):
+    pre = '|.. ' *lvl
+    print(pre)
+    if lvl>0 and not leafp: 
+      print(f"{pre:width}")
+    else:
+      about = stats(node.data)
+      if leafp: 
+        prints(f"{pre:width}", *about.values())
+      elif lvl==0:
+        space = '    ' *lvl
+        prints(f"{space:width}", *about.keys())
+        prints(f"{space:width}", *about.values())
 #----------------------------------------------------------------------------------------
 #   _  _|_  ._  o  ._    _    _ 
 #  _>   |_  |   |  | |  (_|  _> 
@@ -250,7 +268,12 @@ def test_dist(_):
 
 def test_half(_): 
   d = DATA(csv(the.file))
-  half(d.rows)
+  a,b,c,d= half(d.rows)
+  print(len(c),len(d))
+
+def test_tree(_): 
+  d = DATA(csv(the.file))
+  show(tree(d))
 #----------------------------------------------------------------------------------------
 #   _  _|_   _.  ._  _|_ 
 #  _>   |_  (_|  |    |_ 
