@@ -54,6 +54,9 @@ WHITE='\033[1;37m'
 ,lua() {  ## for short cut to run X.lua
   f=$1.lua; shift; lua $f $* ; }
 
+,py() {  ## for short cut to run X.lua
+  f=$1.py; shift; python3 -B $f $* ; }
+
 ,pdf() { ## print lua to pdf
 	mkdir -p ~/tmp
 	echo "pdf-ing $1 ... "

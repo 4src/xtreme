@@ -1,0 +1,1 @@
+figlet -W -fmini "$@" | gawk '{print "# " $0}'
