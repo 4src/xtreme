@@ -38,9 +38,9 @@ def symp(x): return type(x) is dict
 def nump(x): return type(x) is biglist
 
 def add(col,x):
-  def sym(): col[x] = 1 + col.get(x,0)
-  def num(): col.append(x)
-  if x != "?": sym() if symp(col) else num()
+  def sym(col): col[x] = 1 + col.get(x,0)
+  def num(col): col += [x]
+  if x != "?": (sym if symp(col) else num)(col)
   return x
 
 def norm(col,x):
@@ -125,10 +125,10 @@ def DATA(src):
 def adds(data,row):
   if not data.cols: 
     data.cols = COLS(row.cells)
-    return
-  [add(col,x) for col,x in zip(data.cols.all, row.cells)]
-  row._data = row._data or data
-  data.rows += [row]
+  else:
+    [add(col,x) for col,x in zip(data.cols.all, row.cells)]
+    row._data = row._data or data
+    data.rows += [row]
 
 def COLS(a):
   all = [NUM() if s[0].isupper() else SYM() for s in a] 
