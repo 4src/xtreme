@@ -80,5 +80,8 @@ function test.syms(     s)
   
 function test.csv()
    l.str.csv(x.the.file,  oo)end
+
+function test.data(  d)
+  d=DATA(x.the.file) end 
 -------------------- ------------------- --------------------- -------------------- ----------
 test.Run(x.the)

@@ -165,7 +165,7 @@ function DATA:clone(rows)
   return data end
 
 function DATA:add(row)
-  if self.cols then push(self.rows, self.cols:add(row)) else self.cols=COLS(self.cells) end end 
+  if self.cols then push(self.rows, self.cols:add(row)) else self.cols=COLS(row.cells) end end 
 
 function DATA:bins(rows)
   for _,row in pairs(rows or self.rows) do
