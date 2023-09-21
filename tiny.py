@@ -1,6 +1,21 @@
 #!/usr/bin/env python3 -B
 # vim: set et sts=2 sw=2 ts=2 : 
-import re,ast,sys,random,fileinput
+"""
+tiny: a little light learning laboratory
+(c) Tim Menzies <timm@ieee.org>, BSD-2 license
+
+OPTIONS:
+  -b --bins        initial number of bins = 5
+  -f --file        csv data file          = "../data/auto93.csv"
+  -F --Far         how far to look        = .95
+  -h --help        show help              = False
+  -H --Half        where to find for far  = 256
+  -m --min         min size               = .5
+  -p --p           distance coefficient   = 2
+  -s --seed        random number seed     = 1234567891
+"""
+import re,sys,random,fileinput
+from ast import literal_eval as scan
 from pprint import pprint as pp
 from copy import deepcopy
 from math import cos,log
@@ -8,7 +23,8 @@ from math import cos,log
 #   _   |   _   |_    _.  |   _ 
 #  (_|  |  (_)  |_)  (_|  |  _> 
 #   _|                          
-the=dict(file="../data/auto93.csv", bins=5, Half=256, min=.5,p=2, seed=1234567891,Far=.9)
+
+the=dict(**{m[1]:scan(m[2]) for m in re.finditer( r"\n\s*-\w+\s*--(\w+).*=\s*(\S+)",__doc__)})
 
 BIG=1E30
 #----------------------------------------------------------------------------------------
@@ -16,10 +32,10 @@ BIG=1E30
 #  (_  (_)  |  |_|  | | |  | | 
 
 def SYM(): return {}
-def NUM(): return lots()
+def NUM(): return biglist()
 
 def symp(x): return type(x) is dict
-def nump(x): return type(x) is lots
+def nump(x): return type(x) is biglist
 
 def add(col,x):
   def sym(): col[x] = 1 + col.get(x,0)
@@ -96,18 +112,17 @@ def d2h(row):
     x  = norm(col, row.cells[n])
     d += abs(x - row._data.cols.w[n])**2
     m += 1
-  return (d/m)^.5
+  return (d/m)**.5
 #----------------------------------------------------------------------------------------
 #   _|   _.  _|_   _. 
 #  (_|  (_|   |_  (_| 
 
 def DATA(src):
-  data = box(cols=None, rows=lots())
+  data = box(cols=None, rows=biglist())
   for row in src: adds(data,row)
   return sortedAndDiscretized(data)
 
 def adds(data,row):
-  print(row)
   if not data.cols: data.cols = COLS(row.cells)
   else:
     [add(col,x) for col,x in zip(data.cols.all, row.cells)]
@@ -156,43 +171,42 @@ def half(rows,sorting=False):
   return a, b, rows[:mid], rows[mid:]
 
 def tree(data,sorting=False):
-  def _grow(data1,stop):
+  stop = len(data.rows)**the.min
+  def _grow(data1):
     node = box(data=data1,left=None,right=None)
     if len(data1.rows) >= 2*stop:
        a,b,left,right = half(data1.rows, sorting)
-       node.left = _grow(clone(data, left), stop)
-       node.right = _grow(clone(data, right), stop)
+       node.left = _grow(clone(data, left))
+       node.right = _grow(clone(data, right))
     return node
-  return _grow(data, len(data.rows)**the.min)
+  return _grow(data)
 
 def visit(node,lvl=0):
   if node:
-    yield node,lvl,not(node.left or node.right)
+    yield node, lvl, not(node.left or node.right)
     for kid in [node.left, node.right]:
       for a,b,c in visit(kid,lvl+1):
         yield a,b,c
  
 def show(tree):
-  width = int(log(len(tree.data.rows)**the.min,2))
+  width = 4 * int(log(len(tree.data.rows)**the.min,2))
   for node,lvl,leafp in visit(tree):
     pre = '|.. ' *lvl
-    print(pre)
     if lvl>0 and not leafp: 
-      print(f"{pre:width}")
+      print(f"{pre:{width}}")
     else:
       about = stats(node.data)
       if leafp: 
-        prints(f"{pre:width}", *about.values())
+        prints(f"{pre:{width}}", *about.values())
       elif lvl==0:
-        space = '    ' *lvl
-        prints(f"{space:width}", *about.keys())
-        prints(f"{space:width}", *about.values())
+        prints(f"{' ':{width}}", *about.keys())
+        prints(f"{' ':{width}}", *about.values())
 #----------------------------------------------------------------------------------------
 #   _  _|_  ._  o  ._    _    _ 
 #  _>   |_  |   |  | |  (_|  _> 
 #                        _|     
 def coerce(s):
-  try: return ast.literal_eval(s)
+  try: return scan(s)
   except Exception: return s
 
 def csv(file="-",filter=ROW):
@@ -223,7 +237,7 @@ class box(dict):
   __getattr__ = dict.get
   __repr__    = printd
 
-class lots(list):
+class biglist(list):
   def __repr__(i): 
     return str(i) if len(i)<16 else str(i[:8])+".."+str(i[-8:])
 #----------------------------------------------------------------------------------------
@@ -273,12 +287,10 @@ def test_half(_):
 
 def test_tree(_): 
   d = DATA(csv(the.file))
-  show(tree(d))
+  show(tree(d,sorting=True))
 #----------------------------------------------------------------------------------------
 #   _  _|_   _.  ._  _|_ 
 #  _>   |_  (_|  |    |_ 
 
 the=box(**the)
 if __name__ == "__main__": main(locals())
-
-
