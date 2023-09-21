@@ -75,13 +75,13 @@ WHITE='\033[1;37m'
 	mkdir -p ~/tmp
 	echo "pdf-ing $1 ... "
 	a2ps                          \
-		-BR                          \
+		-Br                          \
 		--chars-per-line 105          \
 		--file-align=fill              \
 		--line-numbers=1                \
 		--borders=no                     \
 		--pro=color                       \
-		--columns  2                       \
+		--columns  3                       \
 		-M letter                           \
 		-o ~/tmp/$1.ps $1.py
 	ps2pdf ~/tmp/$1.ps ~/tmp/$1.pdf;  rm ~/tmp/$1.ps
