@@ -1,7 +1,7 @@
 #!/usr/bin/env python3 -B
 # vim: set et sts=2 sw=2 ts=2 : 
 """
-tiny: a little light learning laboratory
+snap.py: a fast way to find good options
 (c) Tim Menzies <timm@ieee.org>, BSD-2 license
 
 OPTIONS:
@@ -24,7 +24,7 @@ from math import cos,log
 #  (_|  |  (_)  |_)  (_|  |  _> 
 #   _|                          
 
-the=dict(**{m[1]:scan(m[2]) for m in re.finditer( r"\n\s*-\w+\s*--(\w+).*=\s*(\S+)",__doc__)})
+the=dict(**{m[1]:scan(m[2]) for m in re.finditer(r"\n\s*-\w+\s*--(\w+).*=\s*(\S+)",__doc__)})
 
 BIG=1E30
 #----------------------------------------------------------------------------------------
@@ -75,7 +75,7 @@ breaks= {
     8: [ -1.15,	-.67,	-.32, 	 0,	 .32,  .67, 1.15],
     9: [ -1.22,	-.76,	-.43,	-.14,	 .14,	 .43,  .76,	1.22],
    10: [ -1.28,	-.84,	-.52,	-.25,	   0,	 .25,  .52,	 .84,	1.28]}
-#----------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------
 #  ._   _        
 #  |   (_)  \/\/ 
 
@@ -176,11 +176,22 @@ def tree(data,sorting=False):
   def _grow(data1):
     node = box(data=data1,left=None,right=None)
     if len(data1.rows) >= 2*stop:
-       a,b,left,right = half(data1.rows, sorting)
+       _,__,left,right = half(data1.rows, sorting)
        node.left = _grow(clone(data, left))
        node.right = _grow(clone(data, right))
     return node
   return _grow(data)
+
+def prune(data):
+  stop = len(data.rows)**the.min
+  rest = []
+  def _prune(rows):
+    if len(rows) >= 2*stop:
+      _,__,left,right = half(rows, True)
+      rest.extend(right)
+      return _prune(left)
+    return rows,rest
+  return _prune(data.rows)
 
 def visit(node,lvl=0):
   if node:
@@ -289,6 +300,18 @@ def test_half(_):
 def test_tree(_): 
   d = DATA(csv(the.file))
   show(tree(d,sorting=True))
+
+def test_sort(_):
+  d = DATA(csv(the.file))
+  rows = sorted(d.rows, key=d2h)
+  print(stats(clone(d, rows[:50])))
+  print(stats(clone(d, rows[-50:])))
+
+def test_prune(_):
+  d = DATA(csv(the.file))
+  best,rest= prune(d)
+  print(stats(clone(d, best)))
+  print(stats(clone(d, rest)))
 #----------------------------------------------------------------------------------------
 #   _  _|_   _.  ._  _|_ 
 #  _>   |_  (_|  |    |_ 
