@@ -38,69 +38,31 @@ def symp(x): return type(x) is dict
 def nump(x): return type(x) is biglist
 
 def add(col,x):
-  def sym(col): col[x] = 1 + col.get(x,0)
-  def num(col): col += [x]
-  if x != "?": (sym if symp(col) else num)(col)
+  def _sym(col): col[x] = 1 + col.get(x,0)
+  def _num(col): col += [x]
+  if x != "?": (_sym if symp(col) else _num)(col)
   return x
 
 def norm(col,x):
   return x if (x=="?" or symp(col)) else (x - col[0])/(col[-1] - col[0] + 1/BIG)
 
 def mid(x):  return median(x) if nump(x) else mode(x)
-def div(x):  return sd(x)     if nump(x) else ent(x)
+def div(x):  return stdev(x)  if nump(x) else ent(x.values())
 
-def sd(num)       : return (per(num,.9) - per(num,.1))/2.56
+def stdev(num)    : return (per(num,.9) - per(num,.1))/2.56
 def median(num)   : return per(num,.5)
 def per(num,n=0.5): return num[int(n*len(num))]
 
 def mode(sym): return max(sym, key=sym.get)
-def ent(sym):
-  a = sym.values()
+def ent(a):
   N = sum(a)
   return -sum(n/N*log(n/N,2) for n in a if n>0)
 
-def bin(col, x):
-  if x=="?" or symp(col): return x 
-  tmp = (x - mid(col))/(sd(col) + 1/BIG)
-  for b,x in enumerate(breaks[the.bins]): 
-    if tmp <= x: return b 
-  return the.bins
-
-breaks= {
-    3: [ -.43,	 .43],
-    4: [ -.67,     0,	 .67],
-    5: [ -.84,  -.25,  .25,  .84],
-    6: [ -.97,	-.43,    0,	 .43,  .97],
-    7: [ -1.07,	-.57,	-.18,	 .18,  .57, 1.07],
-    8: [ -1.15,	-.67,	-.32, 	 0,	 .32,  .67, 1.15],
-    9: [ -1.22,	-.76,	-.43,	-.14,	 .14,	 .43,  .76,	1.22],
-   10: [ -1.28,	-.84,	-.52,	-.25,	   0,	 .25,  .52,	 .84,	1.28]}
 #-----------------------------------------------------------------------
 #  ._   _        
 #  |   (_)  \/\/ 
 
 def ROW(a): return box(cost=0, _data=None, cells=a, bins=a[:])
-
-def around(row1,rows):
-  return sorted(rows, key=lambda row2: dist(row1,row2))
-
-def dist(row1,row2):
-  def _sym(x,y): 
-    return 0 if x==y else 1
-  def _num(x,y):
-    if x=="?": x= 0 if y>.5 else 1
-    if y=="?": y= 0 if x>.5 else 1
-    return abs(x-y)
-  def _dist(col,x,y):
-    if x=="?" and y=="?": return 1
-    return _sym(x,y) if symp(col) else _num(norm(col,x), norm(col,y))
-  m,d = 0,0
-  for n,col in row1._data.cols.x.items():
-    x  = row1.cells[n]
-    y  = row2.cells[n]
-    d += _dist(col,x,y) ** the.bins
-    m += 1
-  return (d/m) ** (1/the.bins)
 
 def better(row1,row2):
   return d2h(row1) < d2h(row2)
@@ -113,24 +75,44 @@ def d2h(row):
     d += abs(x - row._data.cols.w[n]) ** 2
     m += 1
   return (d/m) ** .5
+
+def around(row1,rows):
+  return sorted(rows, key=lambda row2: dist(row1,row2))
+
+def dist(row1,row2):
+  m,d = 0,0
+  for n,col in row1._data.cols.x.items():
+    m += 1
+    d += _dist(col,row1.cells[n],row2.cells[n]) ** the.bins
+  return (d/m) ** (1/the.bins)
+
+# private dist function
+def _dist(col,x,y):
+  if x=="?" and y=="?": return 1
+  elif symp(col)      : return 0 if x==y else 1
+  else:
+    x,y= norm(col,x), norm(col,y)
+    if x=="?": x= 0 if y>.5 else 1
+    if y=="?": y= 0 if x>.5 else 1
+    return abs(x-y)
 #----------------------------------------------------------------------------------------
 #   _|   _.  _|_   _. 
 #  (_|  (_|   |_  (_| 
 
 def DATA(src):
   data = box(cols=None, rows=biglist())
-  for row in src: adds(data,row)
-  return sortedAndDiscretized(data)
+  for row in src: _adds(data,row)
+  return _sortedAndDiscretized(data)
 
-def adds(data,row):
-  if not data.cols: 
-    data.cols = COLS(row.cells)
-  else:
-    [add(col,x) for col,x in zip(data.cols.all, row.cells)]
-    row._data = row._data or data
-    data.rows += [row]
+def clone(data,rows=[]):
+  return DATA([ROW(data.cols.names)] + rows)
 
-def COLS(a):
+def stats(data, cols="y", decimals=None, want=mid):
+  return box(N=len(data.rows), **{data.cols.names[n] : prin(want(c),decimals)
+                                  for n,c in data.cols[cols].items()})
+
+# private data functions
+def _cols(a):
   all = [NUM() if s[0].isupper() else SYM() for s in a] 
   w   = [0 if s[-1]=="-" else 1             for s in a]
   x,y = {},{}
@@ -139,59 +121,97 @@ def COLS(a):
       (y if name[-1] in "!+-" else x)[n] = col
   return box(names=a, w=w, x=x, y=y, all=all)
 
-def clone(data,rows=[]):
-  return DATA([ROW(data.cols.names)] + rows)
+def _adds(data,row):
+  if not data.cols: 
+    data.cols = _cols(row.cells)
+  else:
+    row._data = row._data or data
+    data.rows += [row]
+    [add(col,x) for col,x in zip(data.cols.all, row.cells)]
 
-def sortedAndDiscretized(data):
+def _sortedAndDiscretized(data):
   for n,col in enumerate(data.cols.all):
     if nump(col): 
       col.sort() 
       for row in data.rows:
-        row.bins[n] = bin(col, row.cells[n])
+        row.bins[n] = _bin(col, row.cells[n])
   return data
 
-def stats(data, cols="y", decimals=None, want=mid):
-      return box(N=len(data.rows), **{data.cols.names[n] : prin(want(c),decimals)
-                                      for n,c in data.cols[cols].items()})
+def _bin(col, x):
+  if x=="?" or symp(col): return x 
+  tmp = (x - mid(col))/(div(col) + 1/BIG)
+  for b,x in enumerate(_breaks[the.bins]): 
+    if tmp <= x: return b 
+  return the.bins
+
+_breaks= {
+    3: [ -.43,	 .43],
+    4: [ -.67,     0,	 .67],
+    5: [ -.84,  -.25,  .25,  .84],
+    6: [ -.97,	-.43,    0,	 .43,  .97],
+    7: [ -1.07,	-.57,	-.18,	 .18,  .57, 1.07],
+    8: [ -1.15,	-.67,	-.32, 	 0,	 .32,  .67, 1.15],
+    9: [ -1.22,	-.76,	-.43,	-.14,	 .14,	 .43,  .76,	1.22],
+   10: [ -1.28,	-.84,	-.52,	-.25,	   0,	 .25,  .52,	 .84,	1.28]}
 #----------------------------------------------------------------------------------------
 #   _  |        _  _|_   _   ._ 
 #  (_  |  |_|  _>   |_  (/_  |  
 
-def extremes(rows):
-  n = int(len(rows)*the.Far)
-  w = random.choice(rows)
-  x = around(w, rows)[n]
-  y = around(x, rows)[n]
-  return x,y, dist(x,y)
-
-def half(rows,sorting=False):
-  a,b,C = extremes( random.sample(rows, k=min(len(rows),the.Half)))
-  if sorting and better(b,a): a,b = b,a 
-  rows = sorted(rows, key=lambda r: (dist(r,a)**2 + C**2 - dist(r,b)**2)/(2*C))
-  mid  = int(len(rows)/2)
-  return a, b, rows[:mid], rows[mid:]
+def NODE(data): return box(data=data,left=None,right=None)
 
 def tree(data,sorting=False):
   stop = len(data.rows)**the.min
   def _grow(data1):
-    node = box(data=data1,left=None,right=None)
+    node = NODE(data1)
     if len(data1.rows) >= 2*stop:
        _,__,left,right = half(data1.rows, sorting)
+       data1.mid=right[0]
        node.left = _grow(clone(data, left))
        node.right = _grow(clone(data, right))
     return node
   return _grow(data)
 
-def prune(data):
+def branch(data):
   stop = len(data.rows)**the.min
   rest = []
-  def _prune(rows):
+  def _branch(rows):
     if len(rows) >= 2*stop:
       _,__,left,right = half(rows, True)
       rest.extend(right)
-      return _prune(left)
+      return _branch(left)
     return rows,rest
-  return _prune(data.rows)
+  return _branch(data.rows)
+
+def prune(node):
+  nodes = [(n,lvl,_) for n,lvl,_ in visit(node)]
+  for node in nodes:
+    node.alive=True
+    for row in node.data.rows: row.alive=True
+  while True:
+    alive = [row for row in rows if row.alive]
+    e={}
+    for n,_ in node.data.cols.x.items():
+      tmp={}
+      for row in alive: add(tmp, row.bin[n])
+      e[n] = ent(tmp.values())
+    
+
+def half(rows,sorting=False):
+  a,b,C = _extremes( random.sample(rows, k=min(len(rows),the.Half)))
+  if sorting and better(b,a): a,b = b,a 
+  rows = sorted(rows, key=lambda r: (dist(r,a)**2 + C**2 - dist(r,b)**2)/(2*C))
+  mid  = int(len(rows)/2)
+  return a, b, rows[:mid], rows[mid:]
+
+def _extremes(rows):
+  n = int(len(rows)*the.Far)
+  w = random.choice(rows)
+  x = around(w, rows)[n]
+  y = around(x, rows)[n]
+  return x,y, dist(x,y)
+#----------------------------------------------------------------------------------------
+#      o   _  o  _|_ 
+#  \/  |  _>  |   |_ 
 
 def visit(node,lvl=0):
   if node:
@@ -200,23 +220,25 @@ def visit(node,lvl=0):
       for a,b,c in visit(kid,lvl+1):
         yield a,b,c
  
-def show(tree):
-  width = 4 * int(log(len(tree.data.rows)**the.min,2))
-  for node,lvl,leafp in visit(tree):
+def show(node):
+  width = 4 * int(log(len(node.data.rows)**the.min,2))
+  for node1,lvl,leafp in visit(node):
     pre = '|.. ' *lvl
     if lvl>0 and not leafp: 
       print(f"{pre:{width}}")
     else:
-      about = stats(node.data)
+      about = stats(node1.data)
       if leafp: 
         prints(f"{pre:{width}}", *about.values())
       elif lvl==0:
         prints(f"{' ':{width}}", *about.keys())
-        prints(f"{' ':{width}}", *about.values())
+        prints(f"{' ':{width}}", *about.values(),"mid")
+        prints(f"{' ':{width}}", *stats(node1.data, want=div).values(),"div")
 #----------------------------------------------------------------------------------------
 #   _  _|_  ._  o  ._    _    _ 
 #  _>   |_  |   |  | |  (_|  _> 
 #                        _|     
+
 def coerce(s):
   try: return scan(s)
   except Exception: return s
@@ -282,7 +304,7 @@ def main(funs):
 def test_all(tests):
   sys.exit(sum([run(k,fun,tests) for k,fun in tests.items() if k != "all"]) - 1)
 
-def test_fail(_):  return 1 > 2
+def test_fail_what_happens_when_we_fail(_):  return 1 > 2
 def test_the(_):   print(the)
 def test_stats(_): printds(stats(DATA(csv(the.file))))
 
@@ -307,9 +329,9 @@ def test_sort(_):
   print(stats(clone(d, rows[:50])))
   print(stats(clone(d, rows[-50:])))
 
-def test_prune(_):
+def test_branch(_):
   d = DATA(csv(the.file))
-  best,rest= prune(d)
+  best,rest= branch(d)
   print(stats(clone(d, best)))
   print(stats(clone(d, rest)))
 #----------------------------------------------------------------------------------------
