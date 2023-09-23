@@ -86,11 +86,11 @@ def dist(row1,row2):
   m,d = 0,0
   for n,col in row1._data.cols.x.items():
     m += 1
-    d += _dist(col,row1.cells[n],row2.cells[n]) ** the.bins
+    d += dist1(col,row1.cells[n],row2.cells[n]) ** the.bins
   return (d/m) ** (1/the.bins)
 
 # private dist function
-def _dist(col,x,y):
+def dist1(col,x,y):
   if x=="?" and y=="?": return 1
   elif symp(col)      : return 0 if x==y else 1
   else:
@@ -104,8 +104,8 @@ def _dist(col,x,y):
 
 def DATA(src):
   data = box(cols=None, rows=biglist())
-  for row in src: _adds(data,row)
-  return _sortedAndDiscretized(data)
+  for row in src: data_adds(data,row)
+  return data_sortedAndDiscretized(data)
 
 def clone(data,rows=[]):
   return DATA([ROW(data.cols.names)] + rows)
@@ -114,8 +114,7 @@ def stats(data, cols="y", decimals=None, want=mid):
   return box(N=len(data.rows), **{data.cols.names[n] : prin(want(c),decimals)
                                   for n,c in data.cols[cols].items()})
 
-# private data functions
-def _cols(a):
+def data_cols(a):
   all = [NUM() if s[0].isupper() else SYM() for s in a] 
   w   = [0 if s[-1]=="-" else 1             for s in a]
   x,y = {},{}
@@ -124,7 +123,7 @@ def _cols(a):
       (y if name[-1] in "!+-" else x)[n] = col
   return box(names=a, w=w, x=x, y=y, all=all)
 
-def _adds(data,row):
+def data_adds(data,row):
   if not data.cols: 
     data.cols = _cols(row.cells)
   else:
@@ -132,22 +131,22 @@ def _adds(data,row):
     data.rows += [row]
     [add(col,x) for col,x in zip(data.cols.all, row.cells)]
 
-def _sortedAndDiscretized(data):
+def data_sortedAndDiscretized(data):
   for n,col in enumerate(data.cols.all):
     if nump(col): 
       col.sort() 
       for row in data.rows:
-        row.bins[n] = _bin(col, row.cells[n])
+        row.bins[n] = data_bin(col, row.cells[n])
   return data
 
-def _bin(col, x):
+def data_bin(col, x):
   if x=="?" or symp(col): return x 
   tmp = (x - mid(col))/(div(col) + 1/BIG)
-  for b,x in enumerate(_breaks[the.bins]): 
+  for b,x in enumerate(data_breaks[the.bins]): 
     if tmp <= x: return b 
   return the.bins
 
-_breaks= {
+data_breaks= {
     3: [ -.43,	 .43],
     4: [ -.67,     0,	 .67],
     5: [ -.84,  -.25,  .25,  .84],
@@ -185,50 +184,54 @@ def branch(data):
     return rows,rest
   return _branch(data.rows)
 
-def prune(node0):
-  def _score(e,node):
-    a, b  = node.left.mid, node.right.mid
-    diffs = [n for n in node0.data.cols.x.keys() if a.bins[n] != b.bins[n]]
-    return sum(e[n]/(node.lvl+1) for n in diffs) / len(diffs)
-
-  def _ok(node):
-    n=node; return n.alive and n.left and n.left.alive and n.right and n.right.alive
-
-  def _alives(node, alive):
-    if node:
-      node.alive=alive
-      for row in nodes.rows: row.alive=alive
-      _alives(node.left,  alive)
-      _alives(node.right, alive)
-
-  def _ents(rows,out):
-    return {n: ent( adds(SYM(), [r.bins[n] for r in rows if r.alive]).values()) 
-            for n in node0.data.cols.x.keys()}
-    
-  _alives(node0,True)
-  rows = rows1 = node0.data.rows
-  while True:
-    rows1 = [row for row in rows1 if row.alive] 
-    if len(rows1) <= len(rows) ** the.min: return rows1
-    candidates = [node for node,_ in visit(node0) if _ok(node)]
-    if not candidates: return rows1
-    e = _ents(rows1,{})
-    most = max(candidates, key=lambda node: _score(e,node))
-    _alives(most.right if better(most.left.mid, most.right.mid) else most.left, False)
-
 def half(rows,sorting=False):
-  a,b,C = _extremes( random.sample(rows, k=min(len(rows),the.Half)))
+  a,b,C = half_extremes( random.sample(rows, k=min(len(rows),the.Half)))
   if sorting and better(b,a): a,b = b,a 
   rows = sorted(rows, key=lambda r: (dist(r,a)**2 + C**2 - dist(r,b)**2)/(2*C))
   mid  = int(len(rows)/2)
   return a, b, rows[:mid], rows[mid:]
 
-def _extremes(rows):
+def half_extremes(rows):
   n = int(len(rows)*the.Far)
   w = random.choice(rows)
   x = around(w, rows)[n]
   y = around(x, rows)[n]
   return x,y, dist(x,y)
+#----------------------------------------------------------------------------------------
+def prune(node0):
+  prune_status(node0,True)
+  rows = rows1 = node0.data.rows
+  while len(rows1) > len(rows) ** the.min:
+    e = prune_ents(rows1,{})
+    for one in sorted([node for node,_ in visit(node0) if prune_isSubtree(node)],
+                      key=lambda node1: -1 * prune_score(e,node1)]):
+      if d2h(one.left.mid) != d2h(one.right.mid):
+        prune_status(one.right if better(one.left.mid,  one.right.mid) else one.left, False)
+        break
+    tmp = [row for row in rows1 if row.alive] 
+    if len(tmp) == len(rows1): print(2); break
+    rows1 = tmp
+    print(len(rows1))
+  return rows1
+
+def prune_score(e,node):
+  a, b  = node.left.mid, node.right.mid
+  diffs = [n for n in node0.data.cols.x.keys() if a.bins[n] != b.bins[n]]
+  return sum(e[n]/(node.lvl+1) for n in diffs) / len(diffs)
+
+def prune_isSubtree(node):
+  n=node; return n.alive and n.left and n.left.alive and n.right and n.right.alive
+
+def prune_status(node, status=True):
+  if node:
+    node.alive=status
+    for row in nodes.rows: row.alive=status
+    prune_status(node.left,  status)
+    prune_status(node.right, status)
+
+def prune_ents(rows,out):
+  return {n: ent( adds(SYM(), [r.bins[n] for r in rows if r.alive]).values()) 
+          for n in node0.data.cols.x.keys()}
 #----------------------------------------------------------------------------------------
 #      o   _  o  _|_ 
 #  \/  |  _>  |   |_ 
