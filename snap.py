@@ -157,19 +157,19 @@ _breaks= {
 #   _  |        _  _|_   _   ._ 
 #  (_  |  |_|  _>   |_  (/_  |  
 
-def NODE(data): return box(data=data,left=None,right=None)
+def NODE(data,lvl=0): return box(data=data, lvl=lvl, left=None, right=None)
 
-def tree(data,sorting=False):
-  stop = len(data.rows)**the.min
-  def _grow(data1):
-    node = NODE(data1)
-    if len(data1.rows) >= 2*stop:
-       _,__,left,right = half(data1.rows, sorting)
-       data1.mid=right[0]
-       node.left = _grow(clone(data, left))
-       node.right = _grow(clone(data, right))
+def tree(data0,sorting=False):
+  stop = len(data0.rows) ** the.min
+  def _grow(data, lvl):
+    node = NODE(data, lvl)
+    if len(data.rows) >= 2*stop:
+       _,__,left,right = half(data.rows, sorting)
+       data.mid   = right[0]
+       node.left  = _grow(clone(data0, left),  lvl+1)
+       node.right = _grow(clone(data0, right), lvl+1)
     return node
-  return _grow(data)
+  return _grow(data0, 0)
 
 def branch(data):
   stop = len(data.rows)**the.min
@@ -182,19 +182,41 @@ def branch(data):
     return rows,rest
   return _branch(data.rows)
 
-def prune(node):
-  nodes = [(n,lvl,_) for n,lvl,_ in visit(node)]
-  for node in nodes:
-    node.alive=True
-    for row in node.data.rows: row.alive=True
-  while True:
-    alive = [row for row in rows if row.alive]
-    e={}
-    for n,_ in node.data.cols.x.items():
+def prune(node0):
+  def _score(e,node):
+    mid1, mid2 = node.left.mid, node.right.mid
+    diffs = [c for c in node0.data.cols.x.keys() if mid1.bins[n] != mid2.bins[n]]
+    return sum(e[c]/(node.lvl+1) for c in diffs) / len(diffs)
+
+  def _ok(node) 
+    n = node
+    return n.alive and n.left and n.left.alive and n.right and n.right.alive
+
+  def _are(node,alive=True):
+    if node:
+      node.alive=alive
+      for row in nodes.rows: row.alive=alive
+      _kill(node.left,aive)
+      _kill(node.right,alive)
+
+  def _ents(a,out):
+    for n in node0.data.cols.x.keys():
       tmp={}
-      for row in alive: add(tmp, row.bin[n])
-      e[n] = ent(tmp.values())
+      for row in node0.data.rows: 
+        if row.alive: add(tmp, row.bin[n])
+      out[n] = ent(tmp.values())
+    return out
     
+  _are(node0,True)
+  rows = rows1 = node0.data.rows
+  while True:
+    rows1 = [row for row in rows1 if row.alive] 
+    if len(rows1) <= len(rows) ** the.min: return rows1
+    candidates = [node for node,_ in visit(node0) if _ok(node)]
+    e = _ents(rows1,{})
+    if not candidates: return rows1
+    most = max(candidates, key=lambda node: _score(e,node))
+    are(most.right if better(most.left.mid, most.right.mid) else most.left, False)
 
 def half(rows,sorting=False):
   a,b,C = _extremes( random.sample(rows, k=min(len(rows),the.Half)))
@@ -215,22 +237,22 @@ def _extremes(rows):
 
 def visit(node,lvl=0):
   if node:
-    yield node, lvl, not(node.left or node.right)
+    yield node, not(node.left or node.right)
     for kid in [node.left, node.right]:
-      for a,b,c in visit(kid,lvl+1):
-        yield a,b,c
+      for a,b in visit(kid,lvl+1):
+        yield a,b
  
 def show(node):
   width = 4 * int(log(len(node.data.rows)**the.min,2))
-  for node1,lvl,leafp in visit(node):
-    pre = '|.. ' *lvl
-    if lvl>0 and not leafp: 
+  for node1,leafp in visit(node):
+    pre = '|.. ' *node1.lvl
+    if node.lvl>0 and not leafp: 
       print(f"{pre:{width}}")
     else:
       about = stats(node1.data)
       if leafp: 
         prints(f"{pre:{width}}", *about.values())
-      elif lvl==0:
+      elif node.lvl==0:
         prints(f"{' ':{width}}", *about.keys())
         prints(f"{' ':{width}}", *about.values(),"mid")
         prints(f"{' ':{width}}", *stats(node1.data, want=div).values(),"div")
