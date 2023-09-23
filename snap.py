@@ -185,29 +185,29 @@ def branch(data):
 def prune(node0):
   def _score(e,node):
     mid1, mid2 = node.left.mid, node.right.mid
-    diffs = [c for c in node0.data.cols.x.keys() if mid1.bins[n] != mid2.bins[n]]
-    return sum(e[c]/(node.lvl+1) for c in diffs) / len(diffs)
+    diffs = [n for n in node0.data.cols.x.keys() if mid1.bins[n] != mid2.bins[n]]
+    return sum(e[n]/(node.lvl+1) for n in diffs) / len(diffs)
 
   def _ok(node) 
     n = node
     return n.alive and n.left and n.left.alive and n.right and n.right.alive
 
-  def _are(node,alive=True):
+  def _alives(node,alive=True):
     if node:
       node.alive=alive
       for row in nodes.rows: row.alive=alive
-      _kill(node.left,aive)
-      _kill(node.right,alive)
+      _alives(node.left,  aive)
+      _alives(node.right, alive)
 
-  def _ents(a,out):
+  def _ents(rows,out):
     for n in node0.data.cols.x.keys():
       tmp={}
-      for row in node0.data.rows: 
+      for row in rows:
         if row.alive: add(tmp, row.bin[n])
       out[n] = ent(tmp.values())
     return out
     
-  _are(node0,True)
+  _alives(node0,True)
   rows = rows1 = node0.data.rows
   while True:
     rows1 = [row for row in rows1 if row.alive] 
@@ -216,7 +216,7 @@ def prune(node0):
     e = _ents(rows1,{})
     if not candidates: return rows1
     most = max(candidates, key=lambda node: _score(e,node))
-    are(most.right if better(most.left.mid, most.right.mid) else most.left, False)
+    _alives(most.right if better(most.left.mid, most.right.mid) else most.left, False)
 
 def half(rows,sorting=False):
   a,b,C = _extremes( random.sample(rows, k=min(len(rows),the.Half)))
