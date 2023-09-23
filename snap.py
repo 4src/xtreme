@@ -37,11 +37,14 @@ def NUM(): return biglist()
 def symp(x): return type(x) is dict
 def nump(x): return type(x) is biglist
 
+
 def add(col,x):
   def _sym(col): col[x] = 1 + col.get(x,0)
   def _num(col): col += [x]
   if x != "?": (_sym if symp(col) else _num)(col)
   return x
+
+def adds(col, a): [add(col,x) for x in a]; return col
 
 def norm(col,x):
   return x if (x=="?" or symp(col)) else (x - col[0])/(col[-1] - col[0] + 1/BIG)
@@ -184,28 +187,23 @@ def branch(data):
 
 def prune(node0):
   def _score(e,node):
-    mid1, mid2 = node.left.mid, node.right.mid
-    diffs = [n for n in node0.data.cols.x.keys() if mid1.bins[n] != mid2.bins[n]]
+    a, b  = node.left.mid, node.right.mid
+    diffs = [n for n in node0.data.cols.x.keys() if a.bins[n] != b.bins[n]]
     return sum(e[n]/(node.lvl+1) for n in diffs) / len(diffs)
 
-  def _ok(node) 
-    n = node
-    return n.alive and n.left and n.left.alive and n.right and n.right.alive
+  def _ok(node):
+    n=node; return n.alive and n.left and n.left.alive and n.right and n.right.alive
 
-  def _alives(node,alive=True):
+  def _alives(node, alive):
     if node:
       node.alive=alive
       for row in nodes.rows: row.alive=alive
-      _alives(node.left,  aive)
+      _alives(node.left,  alive)
       _alives(node.right, alive)
 
   def _ents(rows,out):
-    for n in node0.data.cols.x.keys():
-      tmp={}
-      for row in rows:
-        if row.alive: add(tmp, row.bin[n])
-      out[n] = ent(tmp.values())
-    return out
+    return {n: ent( adds(SYM(), [r.bins[n] for r in rows if r.alive]).values()) 
+            for n in node0.data.cols.x.keys()}
     
   _alives(node0,True)
   rows = rows1 = node0.data.rows
@@ -213,8 +211,8 @@ def prune(node0):
     rows1 = [row for row in rows1 if row.alive] 
     if len(rows1) <= len(rows) ** the.min: return rows1
     candidates = [node for node,_ in visit(node0) if _ok(node)]
-    e = _ents(rows1,{})
     if not candidates: return rows1
+    e = _ents(rows1,{})
     most = max(candidates, key=lambda node: _score(e,node))
     _alives(most.right if better(most.left.mid, most.right.mid) else most.left, False)
 
