@@ -18,12 +18,13 @@ import re,sys,random,fileinput
 from ast import literal_eval as scan
 from pprint import pprint as pp
 from copy import deepcopy
-from math import cos,log
+from math import cos,log,sqrt,pi
 #----------------------------------------------------------------------------------------
 #   _   |   _   |_    _.  |   _ 
 #  (_|  |  (_)  |_)  (_|  |  _> 
 #   _|                          
 
+R=random.random
 BIG=1E30
 class obj:       __repr__= lambda i: printd(i.__dict__, i.__class__.__name__)
 class box(dict): __repr__= lambda i:printd(i); __setattr__=dict.__setitem__; __getattr__=dict.get
@@ -55,12 +56,12 @@ class SYM(COL):
 class NUM(COL):
   def __init__(i, l=[], **kw): 
     super().__init__(**kw)
-    i._has,i.ok,i.heaven = {},True,0 if i.txt[-1]=="-" else 1
+    i._has,i.ok,i.heaven = [],True,0 if i.txt[-1]=="-" else 1
     i.adds(l)
 
-  def add1(i,x)  : i.ok=False; i.has += [x]
+  def add1(i,x)  : i.ok=False; i._has += [x]
   def mid(i)     : return median(i.has)
-  def div(x)     : return stdev(i.has)
+  def div(i)     : return stdev(i.has)
   def norm(i,x)  : a=i.has; return x if x=="?" else (x - a[0])/(a[-1] - a[0] + 1/BIG)
   def dist1(i,x,y):
     x, y = i.norm(x), i.norm(y)
@@ -70,6 +71,7 @@ class NUM(COL):
 
   @property
   def has(i):
+    print(i._has)
     if not i.ok: i._has.sort() 
     i.ok = True
     return i._has
@@ -96,6 +98,8 @@ def mean(a)      : return sum(a)/len(a)
 def stdev(a)     : return (per(a,.9) - per(a,.1))/2.56
 def median(a)    : return per(a,.5)
 def per(a,n=0.5) : return a[int(n*len(a))]
+def normal(mu,sd): return mu+sd*sqrt(-2*log(R())) * cos(2*pi*R())
+   
 #-----------------------------------------------------------------------
 #  ._   _        
 #  |   (_)  \/\/ 
@@ -140,11 +144,12 @@ class DATA(obj):
 
   def stats(i, cols=None, decimals=None, want="mid"):
     want = lambda c: c.mid() if want=="mid" else lambda c : c.div()
-    return box(N=len(i.rows), **{col.txt : prin(want(c),decimals) for c in (cols or i.cols.y})
+    return box(N=len(i.rows), **{col.txt : prin(want(c),decimals) for c in (cols or i.cols.y)})
 
   def discretized(i):
-    for col in enumerate(i.cols.x) for row in data.rows:
-      row.bins[col.at] = col.bin(row.cells[col.at]
+    for col in enumerate(i.cols.x):
+      for row in data.rows:
+         row.bins[col.at] = col.bin(row.cells[col.at])
     return i
   
 def COLS(names):
@@ -235,7 +240,7 @@ def prune(node0):
 
   def _bestLiveRoots():
     return sorted([node for node,_ in node0.nodes() if _liveRoot(node)],
-                  reversed=True, key=lambda node1:  _score(e,node1)])
+                  reversed=True, key=lambda node1:  _score(e,node1))
 
   def _liveRoot(node):
     n=node; return n.alive and n.left and n.left.alive and n.right and n.right.alive
@@ -323,46 +328,52 @@ class CONTROL(obj):
   def main(i):
     i.cli()
     if i.help: print(__doc__)
-    [i.run(x,funs[x]) for x in sys.argv if x in EGS.egs]
+    todo=EGS.Egs()
+    [i.run(x,todo[x]) for x in sys.argv if x in todo]
 #----------------------------------------------------------------------------------------
 #   _    _    _ 
 #  (/_  (_|  _> 
 #        _|     
 
 class EGS:
-  egs= {k:v for k,v in locals().items() if callable(v) and k[0].islower()}
+  def Egs(): return {k:v for k,v in vars(EGS).items() if k[0].islower()}
 
   def all():
-    sys.exit(sum([the.run(k,fun) for k,fun in EGS.egs.items() if k != "all"]) - 1)
+    sys.exit(sum([the.run(k,fun) for k,fun in vars(EGS).Egs() if k != "all"]) - 1)
   
   def fail_what_happens_when_we_fail(_):  return 1 > 2
 
-  def the(_):   print(the)
+  def the():   print(the)
 
-  def stats(_): printds(DATA(csv(the.file)).stats())
+  def num():
+      a= NUM([normal(10,2) for x in range(1000)])
+      print(a.mid(),a.div())
+ 
+
+  def stats(): printds(DATA(csv(the.file)).stats())
   
-  def dist(_): 
+  def dist(): 
     d=DATA(csv(the.file))
     rows=d.around(d.rows[0], d.rows)
     for i in range(0,len(rows),30):
       print(i, rows[0].dist(rows[i]))
   
-  def half(_): 
+  def half(): 
     d = DATA(csv(the.file))
     a,b,k1,k2= d.half(d.rows)
     print(len(k1),len(k2))
   
-  def branches(_): 
+  def branches(): 
     d = DATA(csv(the.file))
     show(d.branches(sorting=True))
   
-  def sort(_):
+  def sort():
     d = DATA(csv(the.file))
     rows = sorted(d.rows, key=lambda row: row.d2h())
     print(d.clone(rows[:50]).stats())
     print(d.clone(rows[-50:]).stats())
   
-  def branch(_):
+  def branch():
     d = DATA(csv(the.file))
     best,rest= d.branch()
     print(d.clone(best).stats())
