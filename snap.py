@@ -27,134 +27,133 @@ from math import cos,log
 the=dict(**{m[1]:scan(m[2]) for m in re.finditer(r"\n\s*-\w+\s*--(\w+).*=\s*(\S+)",__doc__)})
 
 BIG=1E30
+class obj: __repr__ = lambda i: printd(i.__dict__, i.__class__.__name__)
 #----------------------------------------------------------------------------------------
-#   _   _   |       ._ _   ._  
-#  (_  (_)  |  |_|  | | |  | | 
+#   _   _   | 
+#  (_  (_)  |
 
-def SYM(): return {}
-def NUM(): return biglist()
+class COL(obj):
+  def __init__(i,at=0,txt=" "): i.n,i.at,i.txt = 0,at,txt
+  def adds(i, a)  /: [i.add(x) for x in a]; return i
+  def add(i,x)    :
+    if x != "?": i.n += 1; i.add1(x)
+  def dist(i,x,y) : return 1 if x=="?" and y=="?" else i.dist1(x,y)
+  def bin(i,x)    : return x if x=="?" else i.bin1(x)
 
-def symp(x): return type(x) is dict
-def nump(x): return type(x) is biglist
+class SYM(COL): 
+  def __init__(i, l=[], **kw): 
+    super().__init__(**kw)
+    i.has={}
+    i.adds(l)
 
+  def bin1(x)    : return x
+  def add1(i,x)  : i.has[x] = 1 + i.has.get(x,0) 
+  def mid(x)     :  return mode(i.has)
+  def div(x)     :  return ent(i.has.values())
+  def dist1(i,x,y): return 0 if x==y else 1
 
-def add(col,x):
-  def _sym(col): col[x] = 1 + col.get(x,0)
-  def _num(col): col += [x]
-  if x != "?": (_sym if symp(col) else _num)(col)
-  return x
+class NUM(COL):
+  def __init__(i, l=[], **kw): 
+    super().__init__(**kw)
+    i._has,i.ok,i.w = {},True,0 if i.txt[-1]=="-" else 1
+    i.adds(l)
 
-def adds(col, a): [add(col,x) for x in a]; return col
+  def add1(i,x)  : i.ok=False; i.has += [x]
+  def mid(i)     : return median(i.has)
+  def div(x)     : return stdev(i.has)
+  def norm(i,x)  : a=i.has; return x if x=="?" else (x - a[0])/(a[-1] - a[0] + 1/BIG)
+  def dist1(i,x,y):
+    x, y = i.norm(x), i.norm(y)
+    if x=="?": x= 0 if y>.5 else 1
+    if y=="?": y= 0 if x>.5 else 1
+    return abs(x-y)
 
-def norm(col,x):
-  return x if (x=="?" or symp(col)) else (x - col[0])/(col[-1] - col[0] + 1/BIG)
+  @property
+  def has(i):
+    if not i.ok: i._has.sort() 
+    i.ok = True
+    return i._has
 
-def mid(x):  return median(x) if nump(x) else mode(x)
-def div(x):  return stdev(x)  if nump(x) else ent(x.values())
+  def bin1(i, x):
+    tmp = (x - i.mid())/(i.div() + 1/BIG)
+    for b,x in enumerate(NUM._breaks[the.bins]): 
+      if tmp <= x: return b 
+    return the.bins
+  
+  _breaks= {
+      3: [ -.43,	 .43],
+      4: [ -.67,     0,	 .67],
+      5: [ -.84,  -.25,  .25,  .84],
+      6: [ -.97,	-.43,    0,	 .43,  .97],
+      7: [ -1.07,	-.57,	-.18,	 .18,  .57, 1.07],
+      8: [ -1.15,	-.67,	-.32, 	 0,	 .32,  .67, 1.15],
+      9: [ -1.22,	-.76,	-.43,	-.14,	 .14,	 .43,  .76,	1.22],
+     10: [ -1.28,	-.84,	-.52,	-.25,	   0,	 .25,  .52,	 .84,	1.28]}
 
-def stdev(num)    : return (per(num,.9) - per(num,.1))/2.56
-def median(num)   : return per(num,.5)
-def per(num,n=0.5): return num[int(n*len(num))]
-
-def mode(sym): return max(sym, key=sym.get)
-def ent(a):
-  N = sum(a)
-  return -sum(n/N*log(n/N,2) for n in a if n>0)
-
+def mode(sym)      : return max(sym, key=sym.get)
+def ent(a)         : N = sum(a); return -sum(n/N*log(n/N,2) for n in a if n>0)
+def stdev(num)     : return (per(num,.9) - per(num,.1))/2.56
+def median(num)    : return per(num,.5)
+def per(num,n=0.5) : return num[int(n*len(num))]
 #-----------------------------------------------------------------------
 #  ._   _        
 #  |   (_)  \/\/ 
 
-def ROW(a): return box(cost=0, _data=None, cells=a, bins=a[:])
-
-def better(row1,row2):
-  return d2h(row1) < d2h(row2)
-
-def d2h(row):
-  row.cost = 1
-  d,m = 0,0
-  for n,col in row._data.cols.y.items():
-    x  = norm(col, row.cells[n])
-    d += abs(x - row._data.cols.w[n]) ** 2
-    m += 1
-  return (d/m) ** .5
-
-def around(row1,rows):
-  return sorted(rows, key=lambda row2: dist(row1,row2))
-
-def dist(row1,row2):
-  m,d = 0,0
-  for n,col in row1._data.cols.x.items():
-    m += 1
-    d += dist1(col,row1.cells[n],row2.cells[n]) ** the.bins
-  return (d/m) ** (1/the.bins)
-
-# private dist function
-def dist1(col,x,y):
-  if x=="?" and y=="?": return 1
-  elif symp(col)      : return 0 if x==y else 1
-  else:
-    x,y= norm(col,x), norm(col,y)
-    if x=="?": x= 0 if y>.5 else 1
-    if y=="?": y= 0 if x>.5 else 1
-    return abs(x-y)
+class ROW(obj)
+  def __init__(i,a)     : i.cost, i._data, i.cells, i.bins = 0, None, a, a[:]
+  def __gt__(row1,row2) : return row1.d2h() < row2.d2h()
+  def around(i,rows)    : return sorted(rows, key=lambda j: i.dist(j))
+  def d2h(i):
+    i.cost, d, m = 1, 0, 0
+    for col in i._data.cols.y:
+      d += abs(x - col.w) ** 2
+      m += 1
+    return (d/m) ** .5
+  
+  def dist(i,j):
+    m,d = 0,0
+    for col in i._data.cols.x:
+      m += 1
+      d += col.dist(i.cells[n], j.cells[n]) ** the.bins
+    return (d/m) ** (1/the.bins)
 #----------------------------------------------------------------------------------------
 #   _|   _.  _|_   _. 
 #  (_|  (_|   |_  (_| 
 
-def DATA(src):
-  data = box(cols=None, rows=biglist())
-  for row in src: data_adds(data,row)
-  return data_sortedAndDiscretized(data)
+class DATA(obj):
+  def __init__(i,src):
+    i.cols, i.rows = None, biglist()
+    for row in src: i.add(row)
+    return i.discretized()
 
-def clone(data,rows=[]):
-  return DATA([ROW(data.cols.names)] + rows)
+  def clone(i,rows=[]):
+    return DATA([ROW(i.cols.names)] + rows)
 
-def stats(data, cols="y", decimals=None, want=mid):
-  return box(N=len(data.rows), **{data.cols.names[n] : prin(want(c),decimals)
-                                  for n,c in data.cols[cols].items()})
+  def stats(i, cols=None, decimals=None, want="mid"):
+    want = lambda c: c.mid() if want=="mid" else lambda c : c.div()
+    return box(N=len(i.rows), **{col.txt : prin(want(c),decimals) for c in (cols or i.cols.y})
 
-def data_cols(a):
-  all = [NUM() if s[0].isupper() else SYM() for s in a] 
-  w   = [0 if s[-1]=="-" else 1             for s in a]
-  x,y = {},{}
-  for n,(name,col) in enumerate(zip(a,all)):
-    if name[-1] != "X":
-      (y if name[-1] in "!+-" else x)[n] = col
-  return box(names=a, w=w, x=x, y=y, all=all)
+  def discretized(i):
+    for col in enumerate(i.cols.x) for row in data.rows:
+      row.bins[col.at] = col.bin(row.cells[col.at]
+    return i
+  
+class COLS(obj):
+  def __init__(i,a):
+    i.all    = [(NUM if s[0].isupper() else SYM)(at=n,txt=s) for n,s in enumerate(a)] 
+    i.x, i.y = {},{}
+    for n,(name,col) in enumerate(zip(a, i.all)):
+      if name[-1] != "X":
+        if name[-1] == "!": i.klass = col
+        (i.y if name[-1] in "!+-" else i.x).append(col)
 
-def data_adds(data,row):
-  if not data.cols: 
-    data.cols = _cols(row.cells)
-  else:
-    row._data = row._data or data
-    data.rows += [row]
-    [add(col,x) for col,x in zip(data.cols.all, row.cells)]
-
-def data_sortedAndDiscretized(data):
-  for n,col in enumerate(data.cols.all):
-    if nump(col): 
-      col.sort() 
-      for row in data.rows:
-        row.bins[n] = data_bin(col, row.cells[n])
-  return data
-
-def data_bin(col, x):
-  if x=="?" or symp(col): return x 
-  tmp = (x - mid(col))/(div(col) + 1/BIG)
-  for b,x in enumerate(data_breaks[the.bins]): 
-    if tmp <= x: return b 
-  return the.bins
-
-data_breaks= {
-    3: [ -.43,	 .43],
-    4: [ -.67,     0,	 .67],
-    5: [ -.84,  -.25,  .25,  .84],
-    6: [ -.97,	-.43,    0,	 .43,  .97],
-    7: [ -1.07,	-.57,	-.18,	 .18,  .57, 1.07],
-    8: [ -1.15,	-.67,	-.32, 	 0,	 .32,  .67, 1.15],
-    9: [ -1.22,	-.76,	-.43,	-.14,	 .14,	 .43,  .76,	1.22],
-   10: [ -1.28,	-.84,	-.52,	-.25,	   0,	 .25,  .52,	 .84,	1.28]}
+  def add(di,row):
+    if not i.cols: 
+      i.cols = COLS(row.cells)
+    else:
+      row._data = row._data or i
+      i.rows += [row]
+      [col.add(x) for col,x in zip(i.cols.all, row.cells)]
 #----------------------------------------------------------------------------------------
 #   _  |        _  _|_   _   ._ 
 #  (_  |  |_|  _>   |_  (/_  |  
