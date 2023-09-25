@@ -19,8 +19,54 @@
 (defmacro ? (x)
   `(second (cdr (assoc ',x *settings* :test #'equalp))))
 
-(defun with-read (file) 
-  (with-open-file (s file) (read s)))
+(defmacro o (s x &rest xs)
+  (if xs `(o (slot-value ,s ',x) ,@xs) `(slot-value ,s ',x)))
+
+(defstruct pretty)
+(defmethod print-object ((self pretty))
+  (labels
+    ((klass-slots (it) 
+        #+clisp (clos:class-slots (class-of it)) 
+        #+sbcl (sb-mop:class-slots (class-of it)))
+     (klass-slot-definition-name (x) 
+        #+clisp (clos:slot-definition-name x) 
+        #+sbcl (sb-mop:slot-definition-name x))
+     (slots (it) (mapcar 'klass-slot-definition-name (klass-slots it))))
+    (remove-if (lambda (s) (eql (char (symbol-name s) 0) #\_)) (slots self))))
+
+(defun data! (file)
+  (let* ((tmp  (with-open-file (s file) (read s)))
+         (data (make-data :cols (cols! (car tmp)))))
+    (dolist (row (cdr tmp) data)
+      (push (row! row) (o data rows)))))
+
+(defstruct num (n 0) at txt _has ok (heaven 0))
+(defun num! (n &optional (s " ")) 
+  (make-num :at n :txt s :heaven (if (eql #\- (charn s)) 0 1)))
+
+(defstruct sym (n 0) at txt has  ok)
+(defun sym! (n s) 
+  (make-sym :at n :txt s))
+
+(defstruct row cells bins)
+(defun row! (lst data) 
+  (make-row :_data data :cells lst :bins (copy-list lst)))
+
+(defstruct cols names all x y)
+(defun cols! (lst &optional (n 0))
+  (labels ((goalp (s) (member (charn s) '(#\! #\- #\+))) 
+           (col! (&optional (n 0) (s " "))
+                 (if (upper-case-p (char0 s)) (num! n s) (sym! n s))))
+    (let (x y (all (mapcar (lambda (s) (col! (incf n) s)) lst)))
+      (dolist (col all (make-cols :x x :y y :all all :names lst))
+        (unless (eql #\X (charn (o col txt)))
+          (if (goalp (o col txt)) (push col y) (push col x)))))))
+
+
+(defstruct data rows cols)
+;--------------------------------------------------------
+(defun char0 (s) (char s 0))
+(defun charn (s) (char s (1- (length s))))
 
 (defun eltn (n) 
   (lambda (lst) (elt lst n)))
@@ -33,9 +79,5 @@
 
 (defun per (seq &optional (n .5))
   (elt seq (floor (* n (length seq)) 1)))
-
-(let ((data (col 2 (with-read (? file)))))
-  (print (median data))
-  (print (stdev data)))
-
-(defstruct row cells bins)
+;--------------------------------------------------------
+(main (? file))
