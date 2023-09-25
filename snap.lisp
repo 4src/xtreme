@@ -27,15 +27,15 @@
             (car (setf ,lst (cons (cons ,x ,init) ,lst))))))
 
 ;--------------------------------------------------------
-(defstruct num (n 0) at txt has ok (heaven 0))
+(defstruct num (n 0) at txt has ok (heaven 0) (hi -1E30) (lo 1E30))
 (defun num! (n &optional (s " ")) 
   (make-num :at n :txt s :heaven (if (eql #\- (charn s)) 0 1)))
 
-(defstruct sym (n 0) at txt has  ok)
+(defstruct sym (n 0) at txt has  ok mode (most 0))
 (defun sym! (n s) 
   (make-sym :at n :txt s))
 
-(defstruct row cells bins)
+(defstruct row cells bins cols)
 (defun row! (lst) 
   (make-row :cells lst :bins (copy-list lst)))
 
@@ -54,11 +54,13 @@
   (data! (mapcar #'row! (with-open-file (s src) (read s)))))
 
 (defmethod data! ((src cons))
-  (let ((data1 (make-data :cols (cols! (car src)))))
-    (dolist (row1 (cdr src) data1)
-      (setf (o row1 data) (or (o row1 data) data1))
-      (add data1 row1)
-      (push row1 (o data1 has)))))
+  (let ((has (cols0 (cols! (car src)))))
+    (make-data :cols cols0
+               :has (mapcar (lambda (row1) 
+                              (setf (o row1 cols) (or (o row1 cols) cols0))
+                              (add cols0 row1)
+                              row1)
+                            (cdr src)))))
 
 ;-------------------------------
 (defmethod cell ((row1 row) col)
@@ -66,35 +68,52 @@
 
 (defmethod has (x) (o x has))
 (defmethod has ((num1 num))
-  (unless (o num1 ok) (sort has #'<))
-  (setf (o num1 ok) t)
-  (o num1 has))
+  (with-slots (ok has)
+    (unless ok (sort has #'<))
+    (setf ok t)
+    has))
 ;---------------------------------------
-(defmethod add ((data1 data) (row1 row))
-  (dolist (cols (list (o data1 cols x) (o data1 cols y)))
+(defmethod add ((cols1 cols) (row1 row))
+  (dolist (cols (list (o cols x) (o cols y)))
     (dolist (col cols) 
       (add col (cell row1 col)))))
 
 (defmethod add ((num1 num) x)
   (unless (eql x '?)
-    (with-slots (n has ok) num1
+    (with-slots (n has ok lo hi) num1
       (incf n)
       (push x has)
+      (setf lo (min lo x)
+            hi (max hi x))
       (setf ok nil))))
 
 (defmethod add ((sym1 sym) x)
   (unless (eql x '?)
     (with-slots (n has) num1
       (incf n)
-      (incf (freq x has)))))
+      (when (> (incf (freq x has)))
+        (setf mode x
+              most (freq x has))))))
 ;---------------------------------------
 (defmethod mid ((num1 num)) (median (has num1))
-(defmethod mid ((sym1 syn)) (node (has sym1))
+(defmethod mid ((sym1 sym)) (o sym1 mode))
 
 (defmethod div ((num1 num)) (stdev (has num1))
-;---------------------------------------
-(defmethod bins ((data1 data))
-  (cdr (assoc (? bins) *breaks*))
+(defmethod div ((s sym))
+  (with-slots (has n) s
+    (* -1  (loop :for (_ . v) :in has :sum  (* (/ v n)  (log (/ v n) 2))))))
+
+(defmethod norm ((num1 num) x)
+  (with-slots (lo hi) num
+    (if (eql x '?)
+      x
+      (/ (- x lo) (- hi lo -1E-30)))))
+;-----------------------------
+(defmethod bin ((num1 num) x)
+  (if (eql x '?)
+    x
+  (let ((y (/ (- x (mid num1)) (+ (stdev num1)  1E-30))))
+    (
 
 (defvar *breaks* '(
       (3  -.43	 .43])
@@ -114,10 +133,6 @@
 
 (defun col (n lst) 
   (coerce (sort (remove-if (lambda (x) (eq x '?)) (mapcar (eltn n) (cdr lst))) #'<) 'vector))
-
-(defun mode (alist &aux out  (max 0) )
-  (loop for (k . v) in alist do (when (> v max) (setf max v out k)))
-  out)
 
 (defun median (seq) (per seq .5))
 (defun stdev  (seq) (/ (- (per seq .9) (per seq .1)) 2.56))
