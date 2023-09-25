@@ -26,9 +26,8 @@ from math import cos,log,sqrt,pi
 
 R=random.random
 BIG=1E30
-class obj:       __repr__= lambda i: printd(i.__dict__, i.__class__.__name__)
+class obj:       __repr__= lambda i:printd(i.__dict__, i.__class__.__name__)
 class box(dict): __repr__= lambda i:printd(i); __setattr__=dict.__setitem__; __getattr__=dict.get
-
 #----------------------------------------------------------------------------------------
 #   _   _   | 
 #  (_  (_)  |
@@ -71,7 +70,6 @@ class NUM(COL):
 
   @property
   def has(i):
-    print(i._has)
     if not i.ok: i._has.sort() 
     i.ok = True
     return i._has
@@ -111,15 +109,16 @@ class ROW(obj):
   def d2h(i):
     i.cost, d, m = 1, 0, 0
     for col in i._data.cols.y:
+      x  = col.norm(i.cells[col.at])
+      d += abs(x - col.heaven) ** 2
       m += 1
-      d += abs(i.cells[colt.at] - col.heaven) ** 2
     return (d/m) ** .5
   
   def dist(i,j):
     m,d = 0,0
     for col in i._data.cols.x:
-      m += 1
       d += col.dist(i.cells[col.at], j.cells[col.at]) ** the.bins
+      m += 1
     return (d/m) ** (1/the.bins)
 #----------------------------------------------------------------------------------------
 #   _|   _.  _|_   _. 
@@ -346,8 +345,8 @@ class EGS:
   def the():   print(the)
 
   def num():
-      a= NUM([normal(10,2) for x in range(1000)])
-      print(a.mid(),a.div())
+    n= NUM([normal(10,2) for x in range(1000)])
+    return 9.9 < n.mid() < 10.1 and 1.9< n.div() < 2.1
  
 
   def stats(): printds(DATA(csv(the.file)).stats())
