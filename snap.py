@@ -46,10 +46,10 @@ class SYM(COL):
     i.has={}
     i.adds(l)
 
-  def bin1(x)     : return x
+  def bin1(i,x)   : return x
   def add1(i,x)   : i.has[x] = 1 + i.has.get(x,0) 
-  def mid(x)      : return mode(i.has)
-  def div(x)      : return ent(i.has)
+  def mid(i)      : return mode(i.has)
+  def div(i)      : return ent(i.has)
   def dist1(i,x,y): return 0 if x==y else 1
 
 class NUM(COL):
@@ -91,7 +91,7 @@ class NUM(COL):
      10: [ -1.28,	-.84,	-.52,	-.25,	   0,	 .25,  .52,	 .84,	1.28]}
 
 def ent(d)       : a = d.values(); N = sum(a); return -sum(n/N*log(n/N,2) for n in a if n>0)
-def mode(d)      : return max(d, key=sym.get)
+def mode(d)      : return max(d, key=d.get)
 def mean(a)      : return sum(a)/len(a)
 def stdev(a)     : return (per(a,.9) - per(a,.1))/2.56
 def median(a)    : return per(a,.5)
@@ -110,15 +110,17 @@ class ROW(obj):
     i.cost, d, m = 1, 0, 0
     for col in i._data.cols.y:
       x  = col.norm(i.cells[col.at])
-      d += abs(x - col.heaven) ** 2
-      m += 1
+      inc = abs(x - col.heaven) 
+      d  += inc** 2
+      m  += 1
     return (d/m) ** .5
   
   def dist(i,j):
     m,d = 0,0
     for col in i._data.cols.x:
-      d += col.dist(i.cells[col.at], j.cells[col.at]) ** the.bins
-      m += 1
+      inc = col.dist(i.cells[col.at], j.cells[col.at]) ** the.bins
+      d  += inc ** the.bins
+      m  += 1
     return (d/m) ** (1/the.bins)
 #----------------------------------------------------------------------------------------
 #   _|   _.  _|_   _. 
@@ -128,9 +130,9 @@ class DATA(obj):
   def __init__(i,src):
     i.cols, i.rows = None, []
     for row in src: i.add(row)
-    return i.discretized()
+    i.discretized()
 
-  def add(di,row):
+  def add(i,row):
     if not i.cols: 
       i.cols = COLS(row.cells)
     else:
@@ -142,14 +144,13 @@ class DATA(obj):
     return DATA([ROW(i.cols.names)] + rows)
 
   def stats(i, cols=None, decimals=None, want="mid"):
-    want = lambda c: c.mid() if want=="mid" else lambda c : c.div()
-    return box(N=len(i.rows), **{col.txt : prin(want(c),decimals) for c in (cols or i.cols.y)})
+    def val(c): return  prin(c.mid() if want=="mid" else c.div(),decimals)
+    return box(N=len(i.rows), **{c.txt : val(c) for c in (cols or i.cols.y)})
 
   def discretized(i):
-    for col in enumerate(i.cols.x):
-      for row in data.rows:
+    for col in i.cols.x:
+      for row in i.rows:
          row.bins[col.at] = col.bin(row.cells[col.at])
-    return i
   
 def COLS(names):
   all,x,y,klass  = [],[],[],None
@@ -265,10 +266,6 @@ def prune(node0):
         if len(now) >= len(b4) or len(now) <= stop : return now
         else: break
   return now
-#-------------------------------------------------------------------------------------------------
-#      o   _  o  _|_ 
-#  \/  |  _>  |   |_ 
-
 
 #----------------------------------------------------------------------------------------
 #   _  _|_  ._  o  ._    _    _ 
@@ -347,13 +344,17 @@ class EGS:
   def num():
     n= NUM([normal(10,2) for x in range(1000)])
     return 9.9 < n.mid() < 10.1 and 1.9< n.div() < 2.1
- 
 
+  def sym():
+    s= SYM([x for x in "aaaabbc"])
+    return s.mid() =="a" and  1.37 < s.div() < 1.38
+
+  def csv(): [print(x.cells) for x in csv(the.file)]
   def stats(): printds(DATA(csv(the.file)).stats())
   
   def dist(): 
     d=DATA(csv(the.file))
-    rows=d.around(d.rows[0], d.rows)
+    rows = d.rows[0].around( d.rows)
     for i in range(0,len(rows),30):
       print(i, rows[0].dist(rows[i]))
   

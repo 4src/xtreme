@@ -27,7 +27,7 @@
             (car (setf ,lst (cons (cons ,x ,init) ,lst))))))
 
 ;--------------------------------------------------------
-(defstruct num (n 0) at txt has ok (heaven 0) (hi -1E30) (lo 1E30))
+(defstruct num (n 0) at txt (mu 0) (m2 0)  (heaven 0) (hi -1E30) (lo 1E30))
 (defun num! (n &optional (s " ")) 
   (make-num :at n :txt s :heaven (if (eql #\- (charn s)) 0 1)))
 
@@ -54,24 +54,16 @@
   (data! (mapcar #'row! (with-open-file (s src) (read s)))))
 
 (defmethod data! ((src cons))
-  (let ((has (cols0 (cols! (car src)))))
-    (make-data :cols cols0
-               :has (mapcar (lambda (row1) 
-                              (setf (o row1 cols) (or (o row1 cols) cols0))
-                              (add cols0 row1)
-                              row1)
-                            (cdr src)))))
+  (let (rows (cols0 (cols! (car src))))
+    (dolist (row1 (cdr src)) 
+      (setf (o row1 cols) (or (o row1 cols) cols0))
+      (add cols0 row1))
+    (discretize (make-data :cols cols0 :rows (cdr src)))))
 
 ;-------------------------------
-(defmethod cell ((row1 row) col)
-  (elt (row-cells row1) (o col at)))
+(defmacro cell (row1  col)
+  `(elt (row-cells ,row1) (o ,col at)))
 
-(defmethod has (x) (o x has))
-(defmethod has ((num1 num))
-  (with-slots (ok has)
-    (unless ok (sort has #'<))
-    (setf ok t)
-    has))
 ;---------------------------------------
 (defmethod add ((cols1 cols) (row1 row))
   (dolist (cols (list (o cols x) (o cols y)))
@@ -80,12 +72,13 @@
 
 (defmethod add ((num1 num) x)
   (unless (eql x '?)
-    (with-slots (n has ok lo hi) num1
-      (incf n)
-      (push x has)
-      (setf lo (min lo x)
-            hi (max hi x))
-      (setf ok nil))))
+    (with-slots (n  m2 mu lo hi) num1
+      (let ((d (- x mu)))
+        (incf n)
+        (incf mu (/ d n))
+        (incf m2 (* d (-  x mu)))
+        (setf lo (min lo x)
+              hi (max hi x))))))
 
 (defmethod add ((sym1 sym) x)
   (unless (eql x '?)
@@ -95,10 +88,12 @@
         (setf mode x
               most (freq x has))))))
 ;---------------------------------------
-(defmethod mid ((num1 num)) (median (has num1))
+(defmethod mid ((num1 num)) (o num1 mu))
 (defmethod mid ((sym1 sym)) (o sym1 mode))
 
-(defmethod div ((num1 num)) (stdev (has num1))
+(defmethod div ((num1 num)) 
+  (with-slots (m2 n) num1 (sqrt (/ m2 (- n 1)))))
+
 (defmethod div ((s sym))
   (with-slots (has n) s
     (* -1  (loop :for (_ . v) :in has :sum  (* (/ v n)  (log (/ v n) 2))))))
@@ -109,13 +104,24 @@
       x
       (/ (- x lo) (- hi lo -1E-30)))))
 ;-----------------------------
-(defmethod bin ((num1 num) x)
+(defmethod discretize ((data1 data))
+  (dolist (row1 (o data1 rows) data1)
+    (dolist (col (o row1 cols x))
+      (setf (cell row1 col) 
+            (discretize col (cell row1 col))))))
+
+(defmethod discretize ((_    sym) x) x)
+(defmethod discretize ((num1 num) x)
   (if (eql x '?)
     x
-  (let ((y (/ (- x (mid num1)) (+ (stdev num1)  1E-30))))
-    (
+    (let ((b -1)
+          (y (/ (- x (mid num1)) (+ (div num1)  1E-30))))
+      (dolist (n (cdr (assoc (? bins) +breaks+)) b)
+        (incf b)
+        (if (> y n)
+          (return-from bin b))))))
 
-(defvar *breaks* '(
+(defconstant +breaks+ '(
       (3  -.43	 .43])
       (4  -.67     0	 .67)
       (5  -.84  -.25  .25  .84)
