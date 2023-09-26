@@ -163,12 +163,17 @@ class DATA(obj):
       for row in i.rows:
          row.bins[col.at] = col.bin(row.cells[col.at])
  
-  def half(i,rows,sorting=False):
+  def half(i,rows,sorting=False,lvl=0):
     a,b,C = i.extremes( random.sample(rows, k=min(len(rows),the.Half)))
     if sorting and b > a: a,b = b,a 
-    rows = sorted(rows, key=lambda r: (r.dist(a)**2 + C**2 - r.dist(b)**2)/(2*C))
-    mid  = int(len(rows)/2)
-    return a, b, rows[:mid], rows[mid:]
+    lefts,rights = [],[]
+    mid = int(len(rows)/2)
+    for row in sorted(rows, key=lambda r: (r.dist(a)**2 + C**2 - r.dist(b)**2)/(2*C)):
+      (lefts if row.dist(a) < C/2 else rights).append(row)
+    D=lefts[0].dist(lefts[-1])
+    E=rights[0].dist(rights[-1])
+    print(lvl,C, D, E,int(100*D/E))
+    return a, b, lefts, rights
   
   def extremes(i,rows):
     n = int(len(rows)*the.Far)
@@ -180,11 +185,11 @@ class DATA(obj):
   def branches(i,sorting=False):
     def _branches(data, lvl):
       node = NODE(data, lvl)
+      node.center = data.rows[int(len(data.rows)/2)]
       if len(data.rows) >= 2*stop:
-         _,__,left,right = i.half(data.rows, sorting)
-         data.mid   = right[0]
-         node.left  = _branches(i.clone(left),  lvl+1)
-         node.right = _branches(i.clone(right), lvl+1)
+         _,__,left,right = i.half(data.rows, sorting,lvl)
+         node.left   = _branches(i.clone(left),  lvl+1)
+         node.right  = _branches(i.clone(right), lvl+1)
       return node
     #------------
     stop = len(i.rows) ** the.min
@@ -206,7 +211,8 @@ class DATA(obj):
 #  (_  |  |_|  _>   |_  (/_  |  
 
 class NODE(obj):
-  def __init__(i,data,lvl=0): i.alive,i.data, i.lvl, i.left, i.right = True,data,lvl,None,None
+  def __init__(i,data,lvl=0): 
+    i.alive,i.data,i.lvl,i.left,i.right,i.center = True,data,lvl,None,None,None
  
   def nodes(i,status=True,lvl=0):
     if i.alive == status:
@@ -219,13 +225,13 @@ class NODE(obj):
   def show(i,status=True):
     width = 4 * int(log(len(i.data.rows)**the.min,2))
     for node1,leafp in i.nodes(status=status):
-      pre = '|.. ' *node1.lvl
+      pre = '|.. ' * node1.lvl
       if node1.lvl>0 and not leafp: 
         print(f"{pre:{width}}")
       else:
         about = node1.data.stats()
-        if leafp: 
-          prints(f"{pre:{width}}", *about.values(),node1.alive)
+        if node1 and leafp: 
+          prints(f"{pre:{width}}", *about.values(),("!" if node1.center else "?"))
         elif node1.lvl==0:
           prints(f"{' ':{width}}", *about.keys())
           prints(f"{' ':{width}}", *about.values(),"mid")
@@ -246,7 +252,7 @@ class NODE(obj):
                   reverse=True, key=lambda node1:  node1.score(e))
 
   def score(i,e):
-    a, b  = i.left.data.mid, i.right.data.mid
+    a, b  = i.left.center, i.right.center
     diffs = [col for col in i.data.cols.x if a.bins[col.at] != b.bins[col.at]]
     return sum(e[col.at]/(i.lvl+1) for col in diffs) / (1E-30+ len(diffs))
    
@@ -256,8 +262,8 @@ class NODE(obj):
     stop = len(i.data.rows) ** the.min
     while True:
       for one in i.scored(now): 
-        if d2h(one.left.mid) != d2h(one.right.mid):
-          (one.right if one.left.mid > one.right.mid else one.left).living(False)
+        if d2h(one.left.center) != d2h(one.right.center):
+          (one.right if one.left.center > one.right.center else one.left).living(False)
           b4  = now 
           now = [row for row in b4 if row.alive] 
           if len(now) >= len(b4) or len(now) <= stop : return now
@@ -280,7 +286,7 @@ def csv(file="-",filter=ROW):
       if line: yield filter([coerce(x) for x in line.split(",")])
 
 def printd(d,pre=""):
-   return pre+"{"+(" ".join([f":{k} {prin(v,3)}" for k,v in d.items() if k[0] != "_"]))+"}"
+  return pre+"{"+(" ".join([f":{k} {prin(v,3)}" for k,v in d.items() if k[0] != "_"]))+"}"
 
 def printds(*d,**key):
   prints(*list(d[0].keys()),**key)
@@ -379,8 +385,9 @@ class EGS:
   
   def prune():
     d = DATA(csv(the.file))
-    tree = d.branches(sorting=False)
-    tree.scored()
+    tree = d.branches(sorting=True)
+    #tree.show()
+    #for node in tree.scored(): print(node.lvl)
 
 #----------------------------------------------------------------------------------------
 #   _  _|_   _.  ._  _|_ 
