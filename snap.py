@@ -11,7 +11,7 @@ OPTIONS:
   -h --help        show help              = False
   -H --Half        where to find for far  = 256
   -m --min         min size               = .5
-  -p --p           distance coefficient   = 2
+  -p --p           distance coefficient   = 1.5
   -s --seed        random number seed     = 1234567891
 """
 import re,sys,random,fileinput
@@ -126,6 +126,17 @@ class ROW(obj):
 #   _|   _.  _|_   _. 
 #  (_|  (_|   |_  (_| 
 
+def COLS(names):
+  all,x,y,klass  = [],[],[],None
+  for n,s in enumerate(names):
+    a,z  = s[0], s[-1]       
+    col  = (NUM if a.isupper() else SYM)(at=n,txt=s)
+    all += [col]
+    if z != "X":
+      if z == "!": klass = col
+      (y if z in "!+-" else x).append(col)
+  return box(names=names, all=all, x=x, y=y, klass=klass)
+
 class DATA(obj):
   def __init__(i,src):
     i.cols, i.rows = None, []
@@ -151,24 +162,20 @@ class DATA(obj):
     for col in i.cols.x:
       for row in i.rows:
          row.bins[col.at] = col.bin(row.cells[col.at])
+ 
+  def half(i,rows,sorting=False):
+    a,b,C = i.extremes( random.sample(rows, k=min(len(rows),the.Half)))
+    if sorting and b > a: a,b = b,a 
+    rows = sorted(rows, key=lambda r: (r.dist(a)**2 + C**2 - r.dist(b)**2)/(2*C))
+    mid  = int(len(rows)/2)
+    return a, b, rows[:mid], rows[mid:]
   
-def COLS(names):
-  all,x,y,klass  = [],[],[],None
-  for n,s in enumerate(names):
-    a,z  = s[0], s[-1]       
-    col  = (NUM if a.isupper() else SYM)(at=n,txt=s)
-    all += [col]
-    if z != "X":
-      if z == "!": klass = col
-      (y if z in "!+-" else x).append(col)
-  return box(names=a, all=all, x=x, y=y, klass=klass)
-
- #----------------------------------------------------------------------------------------
-#   _  |        _  _|_   _   ._ 
-#  (_  |  |_|  _>   |_  (/_  |  
-
-class NODE(obj):
-  def __init__(i,data,lvl=0): i.data, i.lvl, i.left, i.right = data,lvl,None,None
+  def extremes(i,rows):
+    n = int(len(rows)*the.Far)
+    w = random.choice(rows)
+    x = w.around(rows)[n]
+    y = x.around(rows)[n]
+    return x,y, x.dist(y)
 
   def branches(i,sorting=False):
     def _branches(data, lvl):
@@ -194,26 +201,19 @@ class NODE(obj):
     stop = len(i.rows)**the.min
     rest = []
     return _branch(i.rows)
-  
-  def half(i,rows,sorting=False):
-    a,b,C = i.extremes( random.sample(rows, k=min(len(rows),the.Half)))
-    if sorting and b > a: a,b = b,a 
-    rows = sorted(rows, key=lambda r: (r.dist(a)**2 + C**2 - r.dist(b)**2)/(2*C))
-    mid  = int(len(rows)/2)
-    return a, b, rows[:mid], rows[mid:]
-  
-  def extremes(i,rows):
-    n = int(len(rows)*the.Far)
-    w = random.choice(rows)
-    x = around(w, rows)[n]
-    y = around(x, rows)[n]
-    return x,y, x.dist(y)
+#----------------------------------------------------------------------------------------
+#   _  |        _  _|_   _   ._ 
+#  (_  |  |_|  _>   |_  (/_  |  
 
+class NODE(obj):
+  def __init__(i,data,lvl=0): i.data, i.lvl, i.left, i.right = data,lvl,None,None
+ 
   def nodes(i,lvl=0):
-    yield i, not(i.left or i.right)
+    yield i, (i.left==None and  i.right==None)
     for kid in [i.left, i.right]:
-      for a,b in kid.nodes(lvl+1):
-        yield a,b
+      if kid:
+        for a,b in kid.nodes(lvl+1):
+          yield a,b
 
   def show(i):
     width = 4 * int(log(len(i.data.rows)**the.min,2))
@@ -225,47 +225,42 @@ class NODE(obj):
         about = node1.data.stats()
         if leafp: 
           prints(f"{pre:{width}}", *about.values())
-        elif node.lvl==0:
+        elif node1.lvl==0:
           prints(f"{' ':{width}}", *about.keys())
           prints(f"{' ':{width}}", *about.values(),"mid")
           prints(f"{' ':{width}}", *node1.data.stats(want="div").values(),"div")
-#----------------------------------------------------------------------------------------
-def prune(node0):
-  def _setStatus(node, status=True):
-    if node:
-      node.alive = status
-      for row in node.data.rows: row.alive=status
-      _setStatus(node.left,  status)
-      _setStatus(node.rleft, status)
 
-  def _bestLiveRoots():
-    return sorted([node for node,_ in node0.nodes() if _liveRoot(node)],
-                  reversed=True, key=lambda node1:  _score(e,node1))
+  def living(i, status=True):
+    i.alive = status
+    for row in i.data.rows: row.alive=status
+    if i.left: left.living(status)
+    if i.right: right.living(status)
 
-  def _liveRoot(node):
-    n=node; return n.alive and n.left and n.left.alive and n.right and n.right.alive
-  
-  def _score(e,node):
-    a, b  = node.left.mid, node.right.mid
-    diffs = [col for col in node0.data.cols.x if a.bins[col.at] != b.bins[col.at]]
-    return sum(e[col.at]/(node.lvl+1) for col in diffs) / len(diffs)
+  def insightful(i,e):
+    def _has2Kids(node):
+      n=node; return n.alive and n.left and n.left.alive and n.right and n.right.alive
+    e = {c.at:ent(SYM([r.bins[c.at] for r in rows if r.alive])) for c in i.data.cols.x}
+    return sorted([node for node,_ in i.nodes() if _has2Kids(node)],
+                  reversed=True, key=lambda node1:  node1.score(e))
+
+  def score(i,e):
+    a, b  = i.left.mid, i.right.mid
+    diffs = [col for col in i.data.cols.x if a.bins[col.at] != b.bins[col.at]]
+    return sum(e[col.at]/(i.lvl+1) for col in diffs) / len(diffs)
    
-  def _ents(rows):
-    return {c.at: ent(adds(SYM([r.bins[c.at] for r in rows if r.alive]))) for c in node0.data.cols.x}
-  _setStatus(node0, True)
-
-  b4 = now = node0.data.rows
-  stop = len(node0.data.rows) ** the.min
-  while True:
-    e = _ents(now)
-    for one in _liveRoots(): 
-      if d2h(one.left.mid) != d2h(one.right.mid):
-        _setStatus(one.right if one.left.mid > one.right.mid else one.left, False)
-        b4  = now 
-        now = [row for row in b4 if row.alive] 
-        if len(now) >= len(b4) or len(now) <= stop : return now
-        else: break
-  return now
+  def prune(i):
+    i.living(True)
+    b4 = now = i.data.rows
+    stop = len(i.data.rows) ** the.min
+    while True:
+      for one in i.insightful(): 
+        if d2h(one.left.mid) != d2h(one.right.mid):
+          (one.right if one.left.mid > one.right.mid else one.left).living(False)
+          b4  = now 
+          now = [row for row in b4 if row.alive] 
+          if len(now) >= len(b4) or len(now) <= stop : return now
+          else: break
+    return now
 
 #----------------------------------------------------------------------------------------
 #   _  _|_  ._  o  ._    _    _ 
@@ -365,7 +360,8 @@ class EGS:
   
   def branches(): 
     d = DATA(csv(the.file))
-    show(d.branches(sorting=True))
+    d.branches(sorting=False).show()
+    d.branches(sorting=True).show()
   
   def sort():
     d = DATA(csv(the.file))
