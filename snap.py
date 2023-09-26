@@ -58,10 +58,10 @@ class NUM(COL):
     i._has,i.ok,i.heaven = [],True,0 if i.txt[-1]=="-" else 1
     i.adds(l)
 
-  def add1(i,x)  : i.ok=False; i._has += [x]
-  def mid(i)     : return median(i.has)
-  def div(i)     : return stdev(i.has)
-  def norm(i,x)  : a=i.has; return x if x=="?" else (x - a[0])/(a[-1] - a[0] + 1/BIG)
+  def add1(i,x)   : i.ok=False; i._has += [x]
+  def mid(i)      : return median(i.has)
+  def div(i)      : return stdev(i.has)
+  def norm(i,x)   : a=i.has; return x if x=="?" else (x - a[0])/(a[-1] - a[0] + 1/BIG)
   def dist1(i,x,y):
     x, y = i.norm(x), i.norm(y)
     if x=="?": x= 0 if y>.5 else 1
@@ -103,7 +103,7 @@ def normal(mu,sd): return mu+sd*sqrt(-2*log(R())) * cos(2*pi*R())
 #  |   (_)  \/\/ 
 
 class ROW(obj):
-  def __init__(i,a)     : i.cost, i._data, i.cells, i.bins = 0, None, a, a[:]
+  def __init__(i,a)     : i.alive,i.cost, i._data, i.cells, i.bins = True,0, None, a, a[:]
   def __gt__(row1,row2) : return row1.d2h() < row2.d2h()
   def around(i,rows)    : return sorted(rows, key=lambda j: i.dist(j))
   def d2h(i):
@@ -206,25 +206,26 @@ class DATA(obj):
 #  (_  |  |_|  _>   |_  (/_  |  
 
 class NODE(obj):
-  def __init__(i,data,lvl=0): i.data, i.lvl, i.left, i.right = data,lvl,None,None
+  def __init__(i,data,lvl=0): i.alive,i.data, i.lvl, i.left, i.right = True,data,lvl,None,None
  
-  def nodes(i,lvl=0):
-    yield i, (i.left==None and  i.right==None)
-    for kid in [i.left, i.right]:
-      if kid:
-        for a,b in kid.nodes(lvl+1):
-          yield a,b
+  def nodes(i,status=True,lvl=0):
+    if i.alive == status:
+      yield i, (i.left==None and  i.right==None)
+      for kid in [i.left, i.right]:
+        if kid:
+          for a,b in kid.nodes(status=status,lvl=lvl+1):
+            yield a,b
 
-  def show(i):
+  def show(i,status=True):
     width = 4 * int(log(len(i.data.rows)**the.min,2))
-    for node1,leafp in i.nodes():
+    for node1,leafp in i.nodes(status=status):
       pre = '|.. ' *node1.lvl
       if node1.lvl>0 and not leafp: 
         print(f"{pre:{width}}")
       else:
         about = node1.data.stats()
         if leafp: 
-          prints(f"{pre:{width}}", *about.values())
+          prints(f"{pre:{width}}", *about.values(),node1.alive)
         elif node1.lvl==0:
           prints(f"{' ':{width}}", *about.keys())
           prints(f"{' ':{width}}", *about.values(),"mid")
@@ -233,27 +234,28 @@ class NODE(obj):
   def living(i, status=True):
     i.alive = status
     for row in i.data.rows: row.alive=status
-    if i.left: left.living(status)
-    if i.right: right.living(status)
+    if i.left: i.left.living(status)
+    if i.right: i.right.living(status)
 
-  def insightful(i,e):
+  def scored(i,rows=None):
+    rows = rows or i.data.rows
     def _has2Kids(node):
       n=node; return n.alive and n.left and n.left.alive and n.right and n.right.alive
-    e = {c.at:ent(SYM([r.bins[c.at] for r in rows if r.alive])) for c in i.data.cols.x}
+    e = {c.at:SYM([r.bins[c.at] for r in rows if r.alive]).div() for c in i.data.cols.x}
     return sorted([node for node,_ in i.nodes() if _has2Kids(node)],
-                  reversed=True, key=lambda node1:  node1.score(e))
+                  reverse=True, key=lambda node1:  node1.score(e))
 
   def score(i,e):
-    a, b  = i.left.mid, i.right.mid
+    a, b  = i.left.data.mid, i.right.data.mid
     diffs = [col for col in i.data.cols.x if a.bins[col.at] != b.bins[col.at]]
-    return sum(e[col.at]/(i.lvl+1) for col in diffs) / len(diffs)
+    return sum(e[col.at]/(i.lvl+1) for col in diffs) / (1E-30+ len(diffs))
    
   def prune(i):
     i.living(True)
     b4 = now = i.data.rows
     stop = len(i.data.rows) ** the.min
     while True:
-      for one in i.insightful(): 
+      for one in i.scored(now): 
         if d2h(one.left.mid) != d2h(one.right.mid):
           (one.right if one.left.mid > one.right.mid else one.left).living(False)
           b4  = now 
@@ -360,7 +362,7 @@ class EGS:
   
   def branches(): 
     d = DATA(csv(the.file))
-    d.branches(sorting=False).show()
+    d.branches(sorting=False).show(); print("")
     d.branches(sorting=True).show()
   
   def sort():
@@ -374,6 +376,12 @@ class EGS:
     best,rest= d.branch()
     print(d.clone(best).stats())
     print(d.clone(rest).stats())
+  
+  def prune():
+    d = DATA(csv(the.file))
+    tree = d.branches(sorting=False)
+    tree.scored()
+
 #----------------------------------------------------------------------------------------
 #   _  _|_   _.  ._  _|_ 
 #  _>   |_  (_|  |    |_ 
