@@ -35,9 +35,10 @@
 (defun sym! (n s) 
   (make-sym :at n :txt s))
 
-(defstruct row cells bins cols)
-(defun row! (lst) 
-  (make-row :cells lst :bins (copy-list lst)))
+(labels ((id 0))
+  (defstruct id row cells bins cols)
+  (defun row! (lst) 
+    (make-row :id (incf id) :cells lst :bins (copy-list lst))))
 
 (defstruct cols names all x y)
 (defun cols! (lst &optional (n 0))
@@ -122,14 +123,14 @@
           (return-from bin b))))))
 
 (defconstant +breaks+ '(
-      (3  -.43	 .43])
-      (4  -.67     0	 .67)
+      (3  -.43   .43])
+      (4  -.67     0   .67)
       (5  -.84  -.25  .25  .84)
-      (6  -.97	-.43    0	 .43  .97)
-      (7  -1.07	-.57	-.18	 .18  .57 1.07)
-      (8  -1.15	-.67	-.32 	 0	 .32  .67 1.15)
-      (9  -1.22	-.76	-.43	-.14	 .14	 .43  .76	1.22)
-     (10  -1.28	-.84	-.52	-.25	   0	 .25  .52	 .84	1.28)))
+      (6  -.97  -.43    0  .43  .97)
+      (7  -1.07 -.57  -.18   .18  .57 1.07)
+      (8  -1.15 -.67  -.32   0   .32  .67 1.15)
+      (9  -1.22 -.76  -.43  -.14   .14   .43  .76 1.22)
+     (10  -1.28 -.84  -.52  -.25     0   .25  .52  .84  1.28)))
 
 (defun char0 (s) (char s 0))
 (defun charn (s) (char s (1- (length s))))
