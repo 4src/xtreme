@@ -7,11 +7,12 @@ snap.py: a fast way to find good options
 OPTIONS:
   -b --bins        initial number of bins = 5
   -f --file        csv data file          = "../data/auto93.csv"
-  -F --Far         how far to look        = .95
+  -F --Far         how far to look        = .9
   -h --help        show help              = False
   -H --Half        where to find for far  = 256
   -m --min         min size               = .5
   -p --p           distance coefficient   = 1.5
+  -r --reuse       reuse on parent node   = False
   -s --seed        random number seed     = 1234567891
 """
 import re,sys,random,fileinput
@@ -78,7 +79,7 @@ class NUM(COL):
     tmp = (x - i.mid())/(i.div() + 1/BIG)
     for b,x in enumerate(NUM._breaks[the.bins]): 
       if tmp <= x: return b 
-    return the.bins
+    return the.bins - 1
   
   _breaks= {
       3: [ -.43,	 .43],
@@ -103,11 +104,11 @@ def normal(mu,sd): return mu+sd*sqrt(-2*log(R())) * cos(2*pi*R())
 #  |   (_)  \/\/ 
 
 class ROW(obj):
-  def __init__(i,a)     : i.alive,i.cost, i._data, i.cells, i.bins = True,0, None, a, a[:]
+  def __init__(i,a)     : i.alive,i._data, i.cells, i.bins = True,None, tuple(a), a[:]
   def __gt__(row1,row2) : return row1.d2h() < row2.d2h()
   def around(i,rows)    : return sorted(rows, key=lambda j: i.dist(j))
   def d2h(i):
-    i.cost, d, m = 1, 0, 0
+    d, m = 0, 0
     for col in i._data.cols.y:
       x  = col.norm(i.cells[col.at])
       inc = abs(x - col.heaven) 
@@ -163,29 +164,24 @@ class DATA(obj):
       for row in i.rows:
          row.bins[col.at] = col.bin(row.cells[col.at])
  
-  def half(i,rows,sorting=False,lvl=0):
-    a,b,C = i.extremes( random.sample(rows, k=min(len(rows),the.Half)))
+  def half(i,rows,sorting=False,above=None,lvl=0):
+    a,b,C = i.extremes( random.sample(rows, k=min(len(rows),the.Half)), above)
     if sorting and b > a: a,b = b,a 
-    lefts,rights = [],[]
-    mid = int(len(rows)/2)
-    for row in sorted(rows, key=lambda r: (r.dist(a)**2 + C**2 - r.dist(b)**2)/(2*C)):
-      (lefts if row.dist(a) < C/2 else rights).append(row)
-    D=lefts[0].dist(lefts[-1])
-    E=rights[0].dist(rights[-1])
-    print(lvl,C, D, E,int(100*D/E))
-    return a, b, lefts, rights
+    mid  = int(len(rows)/2)
+    rows = sorted(rows, key=lambda r: (r.dist(a)**2 + C**2 - r.dist(b)**2)/(2*C))
+    return a, b, rows[:mid], rows[mid:]
   
-  def extremes(i,rows):
+  def extremes(i,rows,x=None):
     n = int(len(rows)*the.Far)
-    w = random.choice(rows)
-    x = w.around(rows)[n]
+    if not x:
+      w = random.choice(rows)
+      x = w.around(rows)[n]
     y = x.around(rows)[n]
     return x,y, x.dist(y)
 
   def branches(i,sorting=False):
     def _branches(data, lvl):
       node = NODE(data, lvl)
-      node.center = data.rows[int(len(data.rows)/2)]
       if len(data.rows) >= 2*stop:
          _,__,left,right = i.half(data.rows, sorting,lvl)
          node.left   = _branches(i.clone(left),  lvl+1)
@@ -196,15 +192,18 @@ class DATA(obj):
     return _branches(i, 0)
   
   def branch(i):
-    def _branch(rows):
+    def _branch(rows,above=None):
       if len(rows) >= 2*stop:
-        _,__,left,right = i.half(rows, True)
+        above1,above2,left,right = i.half(rows, True, above if the.reuse else None)
+        used.add(above1)
+        used.add(above2)
         rest.extend(right)
-        return _branch(left)
-      return rows,rest
+        return _branch(left,above1)
+      return rows,rest,used
     #-----------------
     stop = len(i.rows)**the.min
     rest = []
+    used = set()
     return _branch(i.rows)
 #----------------------------------------------------------------------------------------
 #   _  |        _  _|_   _   ._ 
@@ -212,7 +211,7 @@ class DATA(obj):
 
 class NODE(obj):
   def __init__(i,data,lvl=0): 
-    i.alive,i.data,i.lvl,i.left,i.right,i.center = True,data,lvl,None,None,None
+    i.alive,i.data,i.lvl,i.left,i.right = True,data,lvl,None,None
  
   def nodes(i,status=True,lvl=0):
     if i.alive == status:
@@ -231,7 +230,7 @@ class NODE(obj):
       else:
         about = node1.data.stats()
         if node1 and leafp: 
-          prints(f"{pre:{width}}", *about.values(),("!" if node1.center else "?"))
+          prints(f"{pre:{width}}", *about.values())
         elif node1.lvl==0:
           prints(f"{' ':{width}}", *about.keys())
           prints(f"{' ':{width}}", *about.values(),"mid")
@@ -243,32 +242,37 @@ class NODE(obj):
     if i.left: i.left.living(status)
     if i.right: i.right.living(status)
 
-  def scored(i,rows=None):
-    rows = rows or i.data.rows
-    def _has2Kids(node):
-      n=node; return n.alive and n.left and n.left.alive and n.right and n.right.alive
-    e = {c.at:SYM([r.bins[c.at] for r in rows if r.alive]).div() for c in i.data.cols.x}
-    return sorted([node for node,_ in i.nodes() if _has2Kids(node)],
-                  reverse=True, key=lambda node1:  node1.score(e))
+  def has2LiveKids(i,now):
+    e = i.ents(now)
+    for node,_ in i.nodes(): 
+      if node.alive and node.left and node.left.alive and node.right and node.right.alive:
+        a = random.choice(node.left.data.rows)
+        b = random.choice(node.right.data.rows)
+        yield node.score(a,b,e),node,a,b
 
-  def score(i,e):
-    a, b  = i.left.center, i.right.center
-    diffs = [col for col in i.data.cols.x if a.bins[col.at] != b.bins[col.at]]
-    return sum(e[col.at]/(i.lvl+1) for col in diffs) / (1E-30+ len(diffs))
-   
+  def score(i,a,b,e):
+     diffs = [col for col in i.data.cols.x if a.bins[col.at] != b.bins[col.at]]
+     return sum(e[col.at]/(i.lvl+1) for col in diffs) / (1E-30+ len(diffs)) / (i.lvl+1)
+
+  def ents(i,now):
+    return {c.at:SYM([r.bins[c.at] for r in now if r.alive]).div() for c in i.data.cols.x}
+
   def prune(i):
-    i.living(True)
-    b4 = now = i.data.rows
-    stop = len(i.data.rows) ** the.min
-    while True:
-      for one in i.scored(now): 
-        if d2h(one.left.center) != d2h(one.right.center):
-          (one.right if one.left.center > one.right.center else one.left).living(False)
+    def _prune(now):
+      if len(now) > stop: 
+        if fours := [four for four in i.has2LiveKids(now)]:
+          _,node,a,b = max(fours, key=lambda x: x[0])
+          (node.right if a > b else node.left).living(False)
           b4  = now 
           now = [row for row in b4 if row.alive] 
-          if len(now) >= len(b4) or len(now) <= stop : return now
-          else: break
-    return now
+          print(node.lvl, len(now))
+          if len(now) < len(b4): 
+            return  _prune(now)
+      return now
+    #-------------  
+    i.living(True)
+    stop = len(i.data.rows) ** the.min
+    return _prune(i.data.rows)
 
 #----------------------------------------------------------------------------------------
 #   _  _|_  ._  o  ._    _    _ 
@@ -303,7 +307,6 @@ def prin(x,decimals=None):
 #  (_  (_)  | |   |_  |   (_)  | 
 
 class CONTROL(obj):
-
   def __init__(i,s):
     d = {m[1]:coerce(m[2]) for m in re.finditer(r"\n\s*-\w+\s*--(\w+).*=\s*(\S+)",__doc__)}
     i.__dict__.update(**d)
@@ -316,19 +319,19 @@ class CONTROL(obj):
         if ("-"+k[0])==x or ("--"+k)==x:
           d[k] = coerce("True" if s=="False" else ("False" if s=="True" else sys.argv[j+1]))
 
-  def run(i,name,fun):
+  def maybeFails(i,name,fun):
     d=i.__dict__
     b4=deepcopy(d)
     random.seed(the.seed)
-    if bad := fun()==False: print(f"❌  FAIL : {name}") 
+    if fails := fun()==False: print(f"❌  FAIL : {name}") 
     for k in b4: d[k] = b4[k]
-    return bad
+    return fails
   
   def main(i):
     i.cli()
     if i.help: print(__doc__)
-    todo=EGS.Egs()
-    [i.run(x,todo[x]) for x in sys.argv if x in todo]
+    todo = EGS.Egs()
+    [i.maybeFails(x,todo[x]) for x in sys.argv if x in todo]
 #----------------------------------------------------------------------------------------
 #   _    _    _ 
 #  (/_  (_|  _> 
@@ -338,7 +341,7 @@ class EGS:
   def Egs(): return {k:v for k,v in vars(EGS).items() if k[0].islower()}
 
   def all():
-    sys.exit(sum([the.run(k,fun) for k,fun in vars(EGS).Egs() if k != "all"]) - 1)
+    sys.exit(sum([the.maybeFails(k,fun) for k,fun in vars(EGS).Egs() if k != "all"]) - 1)
   
   def fail_what_happens_when_we_fail(_):  return 1 > 2
 
@@ -379,14 +382,31 @@ class EGS:
   
   def branch():
     d = DATA(csv(the.file))
-    best,rest= d.branch()
+    best,rest,_= d.branch()
     print(d.clone(best).stats())
     print(d.clone(rest).stats())
   
   def prune():
-    d = DATA(csv(the.file))
-    tree = d.branches(sorting=True)
-    #tree.show()
+    d0   = DATA(csv(the.file))
+    tree = d0.branches(sorting=True)
+    rows1= tree.prune()
+    d1   = d0.clone(rows1)
+    rows2,_= d1.branch()
+    d2   = d0.clone(rows2)
+    print(d2.stats())
+
+  def branch2():
+    d0   = DATA(csv(the.file))
+    rows1,_,used1 = d0.branch()
+    d1   = d0.clone(rows1)
+    rows2,_,used2 = d1.branch()
+    d2   = d0.clone(rows2)
+    stats= d2.stats()
+    stats.cost = len(used1.union(used2))
+    print(stats)
+    
+   
+   #tree.show()
     #for node in tree.scored(): print(node.lvl)
 
 #----------------------------------------------------------------------------------------
