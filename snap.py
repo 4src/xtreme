@@ -7,11 +7,11 @@ snap.py: a fast way to find good options
 OPTIONS:
   -b --bins        initial number of bins = 5
   -f --file        csv data file          = "../data/auto93.csv"
-  -F --Far         how far to look        = .9
+  -F --Far         how far to look        = .95
   -h --help        show help              = False
   -H --Half        where to find for far  = 256
   -m --min         min size               = .5
-  -p --p           distance coefficient   = 1.5
+  -p --p           distance coefficient   = 2
   -r --reuse       reuse on parent node   = False
   -s --seed        random number seed     = 1234567891
 """
