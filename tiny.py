@@ -30,9 +30,18 @@ def entropy(d) : a=d.values(); N = sum(a); return -sum(n/N*log(n/N,2) for n in a
 
 def per(a,p=.5): return a[ int(len(a)*p) ]
 
-def norm(col,x):
-  return x if (x=="?" or not nump(col)) else (x - col[0]) / (col[-1] - col[0] + 1/BIG)
+def norm(a,x):
+  return x if x=="?" else (x - a[0]) / (a[-1] - a[0] + 1/BIG)
 
+def gap(col,x,y): 
+  if x=="?" and y=="?": return 1
+  elif: 
+    x,y = norm(col,x), norm(col,y)
+    x = x if x != "?" else (1 if y < .5 else 0) 
+    y = y if y != "?" else (1 if x < .5 else 0) 
+    return abs(x - y)
+  else:
+    return 0 if x==y else 1 
 #------------------------------------------------
 def COLS(words):
   x, y, klass, all, = {}, {}, None, [COL(s) for s in words]
@@ -57,18 +66,10 @@ def clone(data, src=[]):
   return DATA([data.cols.names] + src)
 
 def dist(data,row1,row2):
-  def _sym(_,x,y): return 0 if x==y else 1
-  def _num(col,x,y):
-    x = x if x != "?" else (1 if y < .5 else 0) 
-    y = y if y != "?" else (1 if x < .5 else 0) 
-    return abs(x - y)
-  def _dist(col,x,y):
-    return 1 if x=="?" and y=="?" else (_num if nump(col) else _sym)(col,x,y)
-  #--------
   m=d=0
   for n,col in data.cols.x.items():
     m += 1
-    d += _dist(col, norm(col,row1[n]), norm(col, row2[n])) ** the.p
+    d += gap(col, row1[n], row2[n]) ** the.p
   return (d/m) ** (1/the.p)
 
 def d2h(data,row1):
