@@ -1,16 +1,18 @@
+#!/usr/bin/env python3 -B
+# vim: set et sts=2 sw=2 ts=2 : 
 import fileinput,random,re,sys,ast
 from copy import deepcopy
 
-defaults=
-  dict(
-      Far   = .95, 
-      Half  = 256, 
-      file  = "../data/auto93.csv", 
-      p     = 2, 
-      reuse = True
+defaults= dict(
+  Far   = .95, 
+  Half  = 256, 
+  file  = "../data/auto93.csv", 
+  p     = 2, 
+  reuse = True,
+  seed  = 1234567891
 )
 
-def COL(word): return [] if word[0].isupper else {}
+def COL(s): return [] if s[0].isupper else {}
 
 def nump(x): return type(x) is list
 
@@ -24,7 +26,6 @@ def div(col): return stdev(col)  if nump(col) else entropy(col)
 
 def mode(d)    : return max(d, key=d.get)
 def median(a)  : return per(a, .5)
-
 def stdev(a)   : return (per(a, .9) - per(a,.1))/ 2.56
 def entropy(d) : a=d.values(); N = sum(a); return -sum(n/N*log(n/N,2) for n in a if n>0)
 
@@ -35,18 +36,19 @@ def norm(a,x):
 
 def gap(col,x,y): 
   if x=="?" and y=="?": return 1
-  elif: 
+  elif nump(col): 
     x,y = norm(col,x), norm(col,y)
-    x = x if x != "?" else (1 if y < .5 else 0) 
-    y = y if y != "?" else (1 if x < .5 else 0) 
+    if x == "?": x = 1 if y < .5 else 0 
+    if y == "?": y = 1 if x < .5 else 0 
     return abs(x - y)
   else:
     return 0 if x==y else 1 
+
 #------------------------------------------------
 def COLS(words):
   x, y, klass, all, = {}, {}, None, [COL(s) for s in words]
   for n,(col,word) in enumerate(zip(all,words)):
-    if word[-1] ~= "X":
+    if word[-1] != "X":
       if word[-1] == "!": klass=col
       (y if word[-1] in "!+-" else x)[n] = col
   return box(names=words, x=x, y=y, all=all, klass=klass)
@@ -65,6 +67,7 @@ def DATA(src):
 def clone(data, src=[]):
   return DATA([data.cols.names] + src)
 
+#------------------------------------------------
 def dist(data,row1,row2):
   m=d=0
   for n,col in data.cols.x.items():
@@ -84,11 +87,11 @@ def around(data, row1, rows):
   return sorted(rows, key=lambda row2: dist(data,row1,row2))
 
 def extremes(data,rows,x=None):
-  n = int(the.Far * len(rows))
-  if not x:
+  far = int(the.Far * len(rows))
+  if not x:  
     w = any(rows)
-    x = around(data, w, rows)[n]
-  y = around(data, x, rows)[n]
+    x = around(data, w, rows)[far]
+  y = around(data, x, rows)[far]
   return x, y, dist(data,x,y)
 
 def half(data,rows,sorting=False,above=None):
@@ -178,6 +181,14 @@ def prin(x,decimals=None):
 
 def prints(*l,**key): print(*[prin(x,2) for x in l],sep="\t",**key)
 
+def cli(d):
+  for k, v in d.items():
+    s = str(v)
+    for j, x in enumerate(sys.argv):
+      if ("-"+k[0])==x or ("--"+k)==x:
+        d[k] = coerce("True" if s=="False" else ("False" if s=="True" else sys.argv[j+1]))
+  return d
+
 #-------------------------
 class eg:
   def csv():
@@ -205,10 +216,13 @@ class eg:
     a,b,l,r = half(d, d.rows)
     print(len(l), len(r))
 #-------------------------
-def run():
+def run(name,fun):
   for k in defaults: the[k] = defaults[k]
+  random.seed(the.seed)
+  if failed := fun()==False: print(f"❌  FAIL : {name}") 
+  return failed
 
 the = box(**defaults)
 if __name__ == "__main__":
   the = cli(the)
-  [vars(eg)[word]() for word in sys.argv if word in vars(eg)]
+  [run(word, vars(eg)[word]) for word in sys.argv if word in vars(eg)]
