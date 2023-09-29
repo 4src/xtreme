@@ -1,24 +1,34 @@
 (defvar *settings* 
-  '((about "cutr" ("cutr: to understand 'it',  cut 'it' up, then seek patterns in" 
-                   "the pieces. E.g. here we use cuts for multi- objective,"
-                   "semi- supervised, rule-based explanation."  
-                   "(c) Tim Menzies <timm@ieee.org>, BSD-2 license"))
-    (bins      "initial number of bins"     16)
-    (bootstrap "bootstraps"                 256)
-    (cliffs    "nonparametric small delta"  .147)
-    (cohen     "parametric small delta"     .35)
-    (file      "read data file"             "../data/auto93.lisp")
-    (go        "start up action"            help)
-    (help      "show help"                  nil)
-    (seed      "random number seed"         1234567891)
-    (min       "min size"                   .5)
-    (rest      "exapansion best to rest"    3)
-    (top       "top items to explore"       10)
-    (want      "optimization goal"          plan)))
+  '((about 
+      "mu: less is more"
+      "don;t u just love it")
+    (seed "-s" posint "random number seed" 1234567891)
+    (file "-f" file   "data file"          "../data/auto93.csv")
+    ))
 
-(defmacro ? (x)
-  `(second (cdr (assoc ',x *settings* :test #'equalp))))
+(defmacro my (x) `(fifth (assoc ',x  (cdr *settings*))))
 
+;(defvar *settings* 
+;  '((about "cutr" ("cutr: to understand 'it',  cut 'it' up, then seek patterns in" 
+;                   "the pieces. E.g. here we use cuts for multi- objective,"
+;                   "semi- supervised, rule-based explanation."  
+;                   "(c) Tim Menzies <timm@ieee.org>, BSD-2 license"))
+;    (bins      "initial number of bins"     16)
+;    (bootstrap "bootstraps"                 256)
+;    (cliffs    "nonparametric small delta"  .147)
+;    (cohen     "parametric small delta"     .35)
+;    (file      "read data file"             "../data/auto93.lisp")
+;    (go        "start up action"            help)
+;    (help      "show help"                  nil)
+;    (seed      "random number seed"         1234567891)
+;    (min       "min size"                   .5)
+;    (rest      "exapansion best to rest"    3)
+;    (top       "top items to explore"       10)
+;    (want      "optimization goal"          plan)))
+;
+;(defmacro ? (x)
+;  `(second (cdr (assoc ',x *settings* :test #'equalp))))
+;
 (defmacro o (s x &rest xs)
   (if xs `(o (slot-value ,s ',x) ,@xs) `(slot-value ,s ',x)))
 
@@ -26,6 +36,7 @@
   `(cdr (or (assoc ,x ,lst :test #'equal) 
             (car (setf ,lst (cons (cons ,x ,init) ,lst))))))
 
+(defmacro aif (test then &optional else) `(let ((it ,test)) (if it ,then ,else)))
 ;--------------------------------------------------------
 (defstruct num (n 0) at txt (mu 0) (m2 0)  (heaven 0) (hi -1E30) (lo 1E30))
 (defun num! (n &optional (s " ")) 
@@ -117,10 +128,10 @@
     x
     (let ((b -1)
           (y (/ (- x (mid num1)) (+ (div num1)  1E-30))))
-      (dolist (n (cdr (assoc (? bins) +breaks+)) b)
+      (dolist (n (cdr (assoc (my bins) +breaks+)) b)
         (incf b)
         (if (> y n)
-          (return-from bin b))))))
+          (return-from bin (1- b)))))))
 
 (defconstant +breaks+ '(
       (3  -.43   .43])
@@ -146,5 +157,47 @@
 
 (defun per (seq &optional (n .5))
   (elt seq (floor (* n (length seq)) 1)))
+
+(defun thing (s &aux (s1 (string-trim '(#\Space #\Tab) s)))
+  (or (read-from-string s1) s1))
+
+(let ((seed  1234567891)
+      (n1    2147483647.0d0)
+      (n2    16807.0d0)
+      (b     1000000000000.0))
+  (defun rand-seed (n) (setf seed n))
+  (defun rand      (&optional (n 1)) (setf seed (mod (* n2  seed) n1)) (* n (- 1.0d0 (/ seed n1))))
+  (defun rand-int  (&optional (n 1) &aux (base b)) (floor (* n (/ (rand base) base)))))
 ;--------------------------------------------------------
-(main (? file))
+(defvar *tests*)
+
+(defmacro deftest (fun args doc &rest code)
+  (let ((flag (subseq (string-downcase (symbol-name fun)) 2)))
+    (push (list flag doc fun) *tests*)
+    `(defun ,fun ,args ,@code)))
+
+(defun run (fun flag)
+  (let ((b4 (copy-tree *settings*)))
+    (rand-seed (my seed))
+    (prog1 
+      (or (handler-case (funcall fun)
+            (error (c) (format *error-output* "~&✋ CRASH on ~a : ~a~%" flag c)))
+          (format *error-output* "~&❌ FAIL: ~a~%" flag))
+      (setf *settings* b4))))
+
+(defun cli ()
+  (let ((args (coerce #+clisp ext:*args* #+sbcl sb-ext:*posix-argv* 'vector)))
+    (loop for j from 0 and arg across args do
+          (labels ((flip(b4) (cond ((eql b4 t) nil)
+                                   ((eql b4 nil) t)
+                                   (t (thing (elt args (1+ j)))))))
+            (aif (member arg (cdr *settings*) :key #'second :test #'string=)
+                 (setf (fifth (car it)) (flip  (the (car it))))) 
+            (aif (assoc arg *tests* :test #'string=)
+                 (run (function arg) arg))))))
+
+(deftest eg-fred ()
+  "asdas" (print 1))
+
+
+;(main (? file))

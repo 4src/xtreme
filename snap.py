@@ -191,9 +191,9 @@ class DATA(obj):
     stop = len(i.rows) ** the.min
     return _branches(i, 0)
   
-  def branch(i):
+  def branch(i,alpha=1):
     def _branch(rows,above=None):
-      if len(rows) >= 2*stop:
+      if len(rows) >= (2*stop*alpha):
         above1,above2,left,right = i.half(rows, True, above if the.reuse else None)
         used.add(above1)
         used.add(above2)
@@ -201,7 +201,7 @@ class DATA(obj):
         return _branch(left,above1)
       return rows,rest,used
     #-----------------
-    stop = len(i.rows)**the.min
+    stop = len(i.rows)**(the.min)
     rest = []
     used = set()
     return _branch(i.rows)
@@ -235,45 +235,6 @@ class NODE(obj):
           prints(f"{' ':{width}}", *about.keys())
           prints(f"{' ':{width}}", *about.values(),"mid")
           prints(f"{' ':{width}}", *node1.data.stats(want="div").values(),"div")
-
-  def living(i, status=True):
-    i.alive = status
-    for row in i.data.rows: row.alive=status
-    if i.left: i.left.living(status)
-    if i.right: i.right.living(status)
-
-  def has2LiveKids(i,now):
-    e = i.ents(now)
-    for node,_ in i.nodes(): 
-      if node.alive and node.left and node.left.alive and node.right and node.right.alive:
-        a = random.choice(node.left.data.rows)
-        b = random.choice(node.right.data.rows)
-        yield node.score(a,b,e),node,a,b
-
-  def score(i,a,b,e):
-     diffs = [col for col in i.data.cols.x if a.bins[col.at] != b.bins[col.at]]
-     return sum(e[col.at]/(i.lvl+1) for col in diffs) / (1E-30+ len(diffs)) / (i.lvl+1)
-
-  def ents(i,now):
-    return {c.at:SYM([r.bins[c.at] for r in now if r.alive]).div() for c in i.data.cols.x}
-
-  def prune(i):
-    def _prune(now):
-      if len(now) > stop: 
-        if fours := [four for four in i.has2LiveKids(now)]:
-          _,node,a,b = max(fours, key=lambda x: x[0])
-          (node.right if a > b else node.left).living(False)
-          b4  = now 
-          now = [row for row in b4 if row.alive] 
-          print(node.lvl, len(now))
-          if len(now) < len(b4): 
-            return  _prune(now)
-      return now
-    #-------------  
-    i.living(True)
-    stop = len(i.data.rows) ** the.min
-    return _prune(i.data.rows)
-
 #----------------------------------------------------------------------------------------
 #   _  _|_  ._  o  ._    _    _ 
 #  _>   |_  |   |  | |  (_|  _> 
@@ -396,14 +357,15 @@ class EGS:
     print(d2.stats())
 
   def branch2():
-    d0   = DATA(csv(the.file))
-    rows1,_,used1 = d0.branch()
-    d1   = d0.clone(rows1)
-    rows2,_,used2 = d1.branch()
-    d2   = d0.clone(rows2)
-    stats= d2.stats()
-    stats.cost = len(used1.union(used2))
-    print(stats)
+    for i in range(20):
+      d0   = DATA(csv(the.file))
+      rows1,_,used1 = d0.branch(alpha=1)
+      d1   = d0.clone(rows1)
+      rows2,_,used2 = d1.branch(alpha=1)
+      d2   = d0.clone(rows2)
+      stats= d2.stats()
+      stats.cost = len(used1.union(used2))
+      print(stats)
     
    
    #tree.show()
