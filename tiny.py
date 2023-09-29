@@ -1,11 +1,8 @@
 import fileinput,random,re,sys,ast
 from copy import deepcopy
 
-BIG=1E30
-any=random.choice
-many=random.choices
-
-the=dict(
+defaults=
+  dict(
       Far   = .95, 
       Half  = 256, 
       file  = "../data/auto93.csv", 
@@ -13,11 +10,32 @@ the=dict(
       reuse = True
 )
 
+def COL(word): return [] if word[0].isupper else {}
+
 def nump(x): return type(x) is list
 
+def add(col,x):
+  if x=="?"      : return 
+  elif nump(col) : col   += [x]
+  else           : col[x] = col.get(x,0) + 1
+
+def mid(col): return median(col) if nump(col) else mode(col)
+def div(col): return stdev(col)  if nump(col) else entropy(col)
+
+def mode(d)    : return max(d, key=d.get)
+def median(a)  : return per(a, .5)
+
+def stdev(a)   : return (per(a, .9) - per(a,.1))/ 2.56
+def entropy(d) : a=d.values(); N = sum(a); return -sum(n/N*log(n/N,2) for n in a if n>0)
+
+def per(a,p=.5): return a[ int(len(a)*p) ]
+
+def norm(col,x):
+  return x if (x=="?" or not nump(col)) else (x - col[0]) / (col[-1] - col[0] + 1/BIG)
+
+#------------------------------------------------
 def COLS(words):
-  x, y, klass = {}, {}, None
-  all = [([] if s[0].isupper() else {}) for s in words]
+  x, y, klass, all, = {}, {}, None, [COL(s) for s in words]
   for n,(col,word) in enumerate(zip(all,words)):
     if word[-1] ~= "X":
       if word[-1] == "!": klass=col
@@ -37,14 +55,6 @@ def DATA(src):
 
 def clone(data, src=[]):
   return DATA([data.cols.names] + src)
-
-def add(col,x):
-  if x=="?"      : return 
-  elif nump(col) : col   += [x]
-  else           : col[x] = col.get(x,0) + 1
-
-def norm(col,x):
-  return x if (x=="?" or not nump(col)) else (x - col[0]) / (col[-1] - col[0] + 1/BIG)
 
 def dist(data,row1,row2):
   def _sym(_,x,y): return 0 if x==y else 1
@@ -136,21 +146,14 @@ def show(node0):
         prints(f"{' ':{width}}", *about.values(),"mid")
         prints(f"{' ':{width}}", *stats(node1.data).values(),"div")
 
-def mid(col): return median(col) if nump(col) else mode(col)
-def div(col): return stdev(col)  if nump(col) else entropy(col)
-
-def mode(d)    : return max(d, key=d.get)
-def median(a)  : return per(a, .5)
-
-def stdev(a)   : return (per(a, .9) - per(a,.1))/ 2.56
-def entropy(d) : a=d.values(); N = sum(a); return -sum(n/N*log(n/N,2) for n in a if n>0)
-
-def per(a,p=.5): return a[ int(len(a)*p) ]
-
 def stats(data,decs=None,what=mid,cols=None):
    return box(N=len(data.rows), **{data.cols.names[n] : prin(what(col),decimals=decs) 
                                    for n,col in (cols or data.cols.y).items()})
 #-------------------------
+BIG=1E30
+any=random.choice
+many=random.choices
+
 class box(dict): 
   __repr__= lambda i:printd(i); __setattr__=dict.__setitem__; __getattr__=dict.get
 
@@ -201,6 +204,10 @@ class eg:
     a,b,l,r = half(d, d.rows)
     print(len(l), len(r))
 #-------------------------
-the = box(**the)
+def run():
+  for k in defaults: the[k] = defaults[k]
 
-[vars(eg)[word]() for word in sys.argv if word in vars(eg)]
+the = box(**defaults)
+if __name__ == "__main__":
+  the = cli(the)
+  [vars(eg)[word]() for word in sys.argv if word in vars(eg)]
