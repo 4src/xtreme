@@ -2,11 +2,15 @@
 # vim: set et sts=2 sw=2 ts=2 : 
 import fileinput,random,re,sys,ast
 from copy import deepcopy
+from math import log
 
-defaults= dict(
+class box(dict): __repr__= lambda i:printd(i); __setattr__=dict.__setitem__; __getattr__=dict.get
+
+the = box(
   Far   = .95, 
   Half  = 256, 
   file  = "../data/auto93.csv", 
+  min   = .5,
   p     = 2, 
   reuse = True,
   seed  = 1234567891
@@ -56,7 +60,8 @@ def COLS(words):
 def DATA(src):
   cols, rows = None, []
   for n,row in enumerate(src):
-    if n==0: cols = COLS(row)
+    if n==0: 
+      cols = COLS(row)
     else:
       [add(col,cell) for cell,col in zip(row,cols.all)]
       rows += [row]
@@ -66,7 +71,6 @@ def DATA(src):
 def clone(data, src=[]):
   return DATA([data.cols.names] + src)
 
-#------------------------------------------------
 def d2h(data,row1):
   m=d=0
   for n,col in data.cols.y.items():
@@ -84,7 +88,7 @@ def dist(data,row1,row2):
 
 def around(data, row1, rows):
   return sorted(rows, key=lambda row2: dist(data,row1,row2))
-
+#------------------------------------------------
 def extremes(data,rows,x=None):
   far = int(the.Far * len(rows))
   if not x:  
@@ -95,7 +99,7 @@ def extremes(data,rows,x=None):
 
 def half(data,rows,sorting=False,above=None):
   a,b,C = extremes(data, many(rows, k=min(len(rows), the.Half)), above)
-  if d2h(data,a) < d2h(data,b): a,b = b,a
+  if sorting and d2h(data,b) < d2h(data,a): a,b = b,a
   D    = lambda r1,r2: dist(data,r1,r2)
   X    = lambda r    : (D(r,a)**2 + C**2 - D(r,b)**2) / (2*C)
   rows = sorted(rows,key=X)
@@ -127,6 +131,7 @@ def branch(data0):
   stop = len(i.rows)**(the.min)
   return _branch(data0.rows, [], set())
 
+
 def nodes(node0, lvl=0):
   yield node0, (node0.left==None and node0.right==None)
   for kid in [node0.left, node0.right]:
@@ -136,7 +141,7 @@ def nodes(node0, lvl=0):
 
 def show(node0):
   width = 4 * int(log(len(node0.data.rows)**the.min,2))
-  for node1,leafp in i.nodes():
+  for node1,leafp in nodes(node0):
     pre = '|.. ' * node1.lvl
     if node1.lvl>0 and not leafp: 
       print(f"{pre:{width}}")
@@ -156,9 +161,6 @@ def stats(data,decs=None,what=mid,cols=None):
 BIG=1E30
 any=random.choice
 many=random.choices
-
-class box(dict): 
-  __repr__= lambda i:printd(i); __setattr__=dict.__setitem__; __getattr__=dict.get
 
 def coerce(s):
   try: return ast.literal_eval(s)
@@ -184,7 +186,6 @@ def printds(*d,**key):
   prints(*list(d[0].keys()),**key)
   [prints(*d1.values(),**key) for d1 in d]
 
-
 def cli(d):
   for k, v in d.items():
     s = str(v)
@@ -197,6 +198,9 @@ def cli(d):
 class EG:
   def all():
     sys.exit(sum([run(x, vars(EG)[x]) for x in sys.argv if x != "all"]))
+
+  def settings():
+    print(the)
 
   def csv():
     for row in csv(the.file): print(row)
@@ -223,14 +227,23 @@ class EG:
     a,b,l,r = half(d, d.rows)
     print(len(l), len(r))
 
-  #-------------------------
+  def half():
+    d = DATA(csv(the.file))
+    a,b,l,r = half(d, d.rows)
+    print(len(l), len(r))
+
+  def tree():
+    d = DATA(csv(the.file))
+    show(branches(d,True))
+
+#-------------------------
 def run(name,fun):
-  for k in defaults: the[k] = defaults[k]
+  b4 = {k:v for k,v in the.items()}
   random.seed(the.seed)
   if failed := fun()==False: print(f"❌  FAIL : {name}") 
+  for k in b4: the[k] = b4[k]
   return failed
 
-the = box(**defaults)
 if __name__ == "__main__":
   the = cli(the)
-  [run(x, vars(EG)[x]) for word in sys.argv if x in vars(EG)]
+  [run(arg, vars(EG)[arg]) for arg in sys.argv if arg in vars(EG)]
