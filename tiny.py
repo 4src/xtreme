@@ -46,7 +46,7 @@ def gap(col,x,y):
 
 #------------------------------------------------
 def COLS(words):
-  x, y, klass, all, = {}, {}, None, [COL(s) for s in words]
+  x, y, klass, all = {}, {}, None, [COL(s) for s in words]
   for n,(col,word) in enumerate(zip(all,words)):
     if word[-1] != "X":
       if word[-1] == "!": klass=col
@@ -55,12 +55,11 @@ def COLS(words):
 
 def DATA(src):
   cols, rows = None, []
-  for row in src:
-    if cols: 
+  for n,row in enumerate(src):
+    if n==0: cols = COLS(row)
+    else:
       [add(col,cell) for cell,col in zip(row,cols.all)]
       rows += [row]
-    else: 
-      cols = COLS(row)
   [col.sort() for col in cols.all if nump(col)]
   return box(rows=rows, cols=cols)
 
@@ -181,6 +180,11 @@ def prin(x,decimals=None):
 
 def prints(*l,**key): print(*[prin(x,2) for x in l],sep="\t",**key)
 
+def printds(*d,**key):
+  prints(*list(d[0].keys()),**key)
+  [prints(*d1.values(),**key) for d1 in d]
+
+
 def cli(d):
   for k, v in d.items():
     s = str(v)
@@ -190,14 +194,17 @@ def cli(d):
   return d
 
 #-------------------------
-class eg:
+class EG:
+  def all():
+    sys.exit(sum([run(x, vars(EG)[x]) for x in sys.argv if x != "all"]))
+
   def csv():
     for row in csv(the.file): print(row)
 
   def d2h():
     d = DATA(csv(the.file))
     for i in range(1,len(d.rows),100):
-      print(i,d2h(d, d.rows[i]))
+      print(i,d2h(d, d.rows[i]), d.rows[i])
 
   def dists():
     d = DATA(csv(the.file))
@@ -208,14 +215,15 @@ class eg:
     d = DATA(csv(the.file))
     rows = sorted(d.rows, key=lambda r: d2h(d,r))
     d1 = clone(d,rows[:50])
-    print(stats(d1,what=mid))
-    print(stats(d1,what=div))
+    d2 = clone(d,rows[-50:])
+    printds(stats(d1),stats(d2))
 
   def half():
     d = DATA(csv(the.file))
     a,b,l,r = half(d, d.rows)
     print(len(l), len(r))
-#-------------------------
+
+  #-------------------------
 def run(name,fun):
   for k in defaults: the[k] = defaults[k]
   random.seed(the.seed)
@@ -225,4 +233,4 @@ def run(name,fun):
 the = box(**defaults)
 if __name__ == "__main__":
   the = cli(the)
-  [run(word, vars(eg)[word]) for word in sys.argv if word in vars(eg)]
+  [run(x, vars(EG)[x]) for word in sys.argv if x in vars(EG)]
