@@ -68,13 +68,6 @@ def clone(data, src=[]):
   return DATA([data.cols.names] + src)
 
 #------------------------------------------------
-def dist(data,row1,row2):
-  m=d=0
-  for n,col in data.cols.x.items():
-    m += 1
-    d += gap(col, row1[n], row2[n]) ** the.p
-  return (d/m) ** (1/the.p)
-
 def d2h(data,row1):
   m=d=0
   for n,col in data.cols.y.items():
@@ -82,6 +75,13 @@ def d2h(data,row1):
     m += 1
     d += abs(w - norm(col,row1[n])) ** 2
   return (d/m) ** .5
+
+def dist(data,row1,row2):
+  m=d=0
+  for n,col in data.cols.x.items():
+    m += 1
+    d += gap(col, row1[n], row2[n]) ** the.p
+  return (d/m) ** (1/the.p)
 
 def around(data, row1, rows):
   return sorted(rows, key=lambda row2: dist(data,row1,row2))
