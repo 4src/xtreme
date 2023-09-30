@@ -1,21 +1,30 @@
 #!/usr/bin/env python3 -B
 # vim: set et sts=2 sw=2 ts=2 : 
+"""
+tiny.py: a fast way to find good options
+(c) Tim Menzies <timm@ieee.org>, BSD-2 license
+
+OPTIONS:
+  -b --bins   initial number of bins   = 16
+  -C --Cohen  too small                = .35
+  -f --file   csv data file            = "../data/auto93.csv"
+  -F --Far    how far to look          = .95
+  -h --help   show help                = False
+  -H --Half   where to find for far    = 256
+  -m --min    min size                 = .5
+  -p --p      distance coefficient     = 2
+  -r --reuse  do npt reuse parent node = True
+  -s --seed   random number seed       = 1234567891
+"""
+from ast import literal_eval as make
 import fileinput,random,re,sys,ast
 from copy import deepcopy
-from math import log
+from math import inf,log
 
 class box(dict): __repr__= lambda i:printd(i); __setattr__=dict.__setitem__; __getattr__=dict.get
 
-the = box(
-  Far   = .95, 
-  Half  = 256, 
-  file  = "../data/auto93.csv", 
-  min   = .5,
-  p     = 2, 
-  reuse = True,
-  seed  = 1234567891
-)
-
+the=box( **{m[1]:make(m[2]) for m in re.finditer(r"\n\s*-\w+\s*--(\w+).*=\s*(\S+)",__doc__)})
+#-------------------------------------------------------------------------------------------- 
 def COL(s): return [] if s[0].isupper else {}
 
 def nump(x): return type(x) is list
@@ -71,6 +80,10 @@ def DATA(src):
 def clone(data, src=[]):
   return DATA([data.cols.names] + src)
 
+def stats(data,decs=None,what=mid,cols=None):
+   return box(N=len(data.rows), **{data.cols.names[n] : prin(what(col),decimals=decs) 
+                                   for n,col in (cols or data.cols.y).items()})
+
 def d2h(data,row1):
   m=d=0
   for n,col in data.cols.y.items():
@@ -88,6 +101,7 @@ def dist(data,row1,row2):
 
 def around(data, row1, rows):
   return sorted(rows, key=lambda row2: dist(data,row1,row2))
+
 #------------------------------------------------
 def extremes(data,rows,x=None):
   far = int(the.Far * len(rows))
@@ -124,14 +138,19 @@ def branch(data0):
       above1,above2,left,right = half(data0, rows, True, above if the.reuse else None)
       used.add(above1)
       used.add(above2)
-      rest.extend(right)
+      rest = rest | set(right)
       return _branch(left, rest, used, above1)
     return rows,rest,used
   #-----------------
-  stop = len(i.rows)**(the.min)
-  return _branch(data0.rows, [], set())
+  stop = len(data0.rows)**(the.min)
+  return _branch(data0.rows, set(), set())
 
+def branchTwice(data0):
+  best1,rest1,used1 = branch(data0)
+  best2,rest2,used2 = branch(clone(data0,best1))
+  return best2, rest1 | rest2, used1 | used2
 
+#------------------------------------------------
 def nodes(node0, lvl=0):
   yield node0, (node0.left==None and node0.right==None)
   for kid in [node0.left, node0.right]:
@@ -154,26 +173,130 @@ def show(node0):
         prints(f"{' ':{width}}", *about.values(),"mid")
         prints(f"{' ':{width}}", *stats(node1.data).values(),"div")
 
-def stats(data,decs=None,what=mid,cols=None):
-   return box(N=len(data.rows), **{data.cols.names[n] : prin(what(col),decimals=decs) 
-                                   for n,col in (cols or data.cols.y).items()})
+#------------------------------------------------------
+def dull(cut): return cut[1] == -inf and cut[2] == inf
+
+def cuts2Rule(cuts):
+   d0 = defaultdict(set)
+   [d0[cut[0]].add(cut) for cut in cuts]
+   return tuple(sorted([tuple(sorted(x)) for x in d0.values()]))
+
+def score(rule, d):
+   got = selects(rule,d)
+   b = len(got["best"]) / (len(d["best"]) + 1/big)
+   r = len(got["rest"]) / (len(d["rest"]) + 1/big)
+   return want[the.want](b,r)
+
+def selects(rule, d)  : return {k: select(rule,rows) for k,rows in d.items()}
+def select(rule, rows): return [row for row in rows if ands(rule,row)]
+
+def ands(rule,row):
+   for cuts in rule:
+      if not ors(rows[cuts[0][0]], cuts): return False
+   return True
+
+def ors(x, cuts):
+   for cut in cuts:
+      if true(x, cut): return cut
+
+def true(x, cut): return x=="?" or cut[1]==cut[2]==x or x > cut[1] and x <= cut[2]
+
+def showRule(names,rule):
+   def show(a,b): return f"{a}" if a==b else f"({a} .. {b}]"
+   str = lambda cuts: ' or '.join([show(cut[1],cut[2]) for cut in cuts])
+   return ' and '.join([f"{names[cuts[0][0]]}: ({str(cuts)})" for cuts in rule])
+
+#-------------------------
+def generation(data0, rows, k):
+  _,_,left,right = half(data, rows, sorting=False)
+  lst = left + right
+  n   = len(lst) - 1
+  out = []
+  for _ in range(k):
+    i = random.choice(range(0, n)
+    if   i==0 : j = 1
+    elif i==n : j = n - 1
+    else      : j = i - 1 
+    new = [(a+b)/2 if nump(col) else (i if R()<.5 else j)
+           for col,a,b in enumerate(data0.cols.all, lst[i], lst[j])]
+    out += [new]
+  return out
+
+#-------------------------
+def cuts(data0, rows):
+  for n,col in data0.cols.x.items():
+    if not nump(col):
+      for x in  {row[n] for _,rows in rows.items() for row in rows if row[n] != "?"}:
+        yield (n, x, x)
+    else:
+      xys = [(row[n],y) for y,rows in rows.items() for row in rows if row[n] != "?"]
+      p   = int(len(xys)/100)
+      for one in cuts1(sorted(xys, key=lambda z:z[0]),
+                       len(xys)/(the.bins - 1),
+                       the.Cohen * (xys[90*p][0] - xys[10*p][0]) / 2.56):
+        yield (n, one.lo, one.hi)
+
+def cuts1(xys, nmin, xmin):
+  lo  = xys[0][0]
+  out = [box(lo=lo, hi=lo, ys={}, n=0)]
+  for i,(x,y) in enumerate(xys):
+    if i < len(xys) - nmin and x != xys[i+1][0] and out[-1].n >= nmin and x-lo >= xmin:
+      out += [box(lo=hi, hi=x, y={}, n=0)]
+      lo = x
+    out[-1].n  += 1
+    out[-1].hi  = x
+    add(out[-1].y, y)
+    hi = x
+  out[ 0].lo = -inf
+  out[-1].hi =  inf
+  return merges(out)
+
+def merges(b4):
+  j,tmp = 0,[]
+  while j < len(b4):
+    a = b4[j]
+    if j < len(b4) - 1:
+      b = b4[j+1]
+      if c := merged(a,b):
+         a  = c
+         j += 1
+    tmp += [a]
+    j += 1
+  return merges(tmp) if len(tmp) < len(b4) else b4
+
+def merged(a,b):
+  c     = deepcopy(a)
+  c.hi  = b.hi
+  c.n  += b.n
+  for k in b.y: c.y[k] = c.y.get(k,0) + b.y[k]
+  if entropy(c.y) <= (a.n*entropy(a.y) + b.n*entropy(b.y)) / c.n:
+    return c
 #-------------------------
 BIG=1E30
 any=random.choice
 many=random.choices
+R=raandom.random
 
 def coerce(s):
-  try: return ast.literal_eval(s)
+  try: return make(s)
   except Exception: return s
 
-def csv(file="-",filter=lambda x: x):
+def cli(d):
+  for k, v in d.items():
+    s = str(v)
+    for j, x in enumerate(sys.argv):
+      if ("-"+k[0])==x or ("--"+k)==x:
+        d[k] = coerce("True" if s=="False" else ("False" if s=="True" else sys.argv[j+1]))
+  return d
+
+def csv(file="-",filter=tuple):
   with  fileinput.FileInput(file) as src:
     for line in src:
       line = re.sub(r'([\n\t\r"\' ]|#.*)', '', line)
       if line: yield filter([coerce(x) for x in line.split(",")])
 
 def printd(d,pre=""):
-  return pre+"{"+(" ".join([f":{k} {prin(v,3)}" for k,v in d.items() if k[0] != "_"]))+"}"
+  return pre+"{"+(" ".join([f":{k} {prin(v,3)}" for k,v in d.items() if k[0] != "_"]))+" }"
 
 def prin(x,decimals=None):
   if callable(x): return x.__name__
@@ -185,14 +308,6 @@ def prints(*l,**key): print(*[prin(x,2) for x in l],sep="\t",**key)
 def printds(*d,**key):
   prints(*list(d[0].keys()),**key)
   [prints(*d1.values(),**key) for d1 in d]
-
-def cli(d):
-  for k, v in d.items():
-    s = str(v)
-    for j, x in enumerate(sys.argv):
-      if ("-"+k[0])==x or ("--"+k)==x:
-        d[k] = coerce("True" if s=="False" else ("False" if s=="True" else sys.argv[j+1]))
-  return d
 
 #-------------------------
 class EG:
@@ -236,11 +351,24 @@ class EG:
     d = DATA(csv(the.file))
     show(branches(d,True))
 
+  def optimize():
+    for _ in range(20):
+      d = DATA(csv(the.file))
+      rows,_,_ = branch(d)
+      print(stats(clone(d,rows)))
+
+  def optimize2():
+    for _ in range(20):
+      d = DATA(csv(the.file))
+      rows,_,_ = branchTwice(d)
+      print(stats(clone(d,rows)))
+
 #-------------------------
 def run(name,fun):
   b4 = {k:v for k,v in the.items()}
   random.seed(the.seed)
-  if failed := fun()==False: print(f"❌  FAIL : {name}") 
+  if failed := fun()==False: 
+    print(f"❌  FAIL : {name}") 
   for k in b4: the[k] = b4[k]
   return failed
 
