@@ -74,6 +74,22 @@ WHITE='\033[1;37m'
 	ps2pdf ~/tmp/$1.ps ~/tmp/$1.pdf;  rm ~/tmp/$1.ps
   open ~/tmp/$1.pdf ; }
 
+,judf() { ## print jl to pdf
+	mkdir -p ~/tmp
+	echo "pdf-ing $1 ... "
+	a2ps                          \
+		-BR                          \
+		--chars-per-line 105          \
+		--file-align=fill              \
+		--line-numbers=1                \
+		--borders=no                     \
+		--pro=color                       \
+		--columns  2                       \
+		-M letter                           \
+		-o ~/tmp/$1.ps $1.jl
+	ps2pdf ~/tmp/$1.ps ~/tmp/$1.pdf;  rm ~/tmp/$1.ps
+  open ~/tmp/$1.pdf ; }
+
 ,pydf() { ## print py to pdf
 	mkdir -p ~/tmp
 	echo "pdf-ing $1 ... "
